@@ -1,189 +1,142 @@
-"""FastAPI endpoints for Relocation-Site Suitability Assessment & Spatial Queries."""
+"""FastAPI endpoints for Relocation Prioritization, Allocation Recommendations, and Urgency Support."""
 
 import uuid
-from typing import List, Optional
+from typing import Dict, Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from backend.app.db.session import get_db
-from backend.app.schemas.relocation import (
-    RelocationSiteResponse,
-    SiteSuitabilityAssessmentResponse,
-    NearbySitesSummaryResponse,
+from backend.app.schemas.priority import (
+    HabitationPrioritiesSummaryResponse,
+    HabitationPriorityResponse,
+    HabitationRelocationRecommendationResponse,
 )
-from backend.app.schemas.capacity import SiteCarryingCapacityResponse
-from backend.app.services.suitability_engine import (
-    get_all_relocation_sites_from_db,
-    get_relocation_site_by_id_from_db,
-    compute_site_assessment_from_db,
-    find_suitable_nearby_sites_for_habitation,
+from backend.app.services.priority_engine import (
+    compute_all_habitations_priorities_summary,
+    compute_habitation_priority_from_db,
 )
-from backend.app.services.capacity_engine import compute_site_capacity_from_db
 
-router = APIRouter()
+router = APIRouter(prefix="/relocation", tags=["Relocation Urgency & Recommendations"])
 
 
 @router.get(
-    "/relocation-sites",
-    response_model=List[RelocationSiteResponse],
-    summary="List Candidate Relocation Sites",
+    "/priorities",
+    response_model=HabitationPrioritiesSummaryResponse,
+    summary="Rank Habitations by Relocation Urgency",
     description=(
-        "Retrieves all candidate resettlement sites with available land parcel area, "
-        "carrying capacity, baseline infrastructure ratings, and GeoJSON boundary geometry."
+        "Calculates transparent 0-100 relocation priority scores across all monitored habitations, "
+        "classifying urgency into IMMEDIATE (81-100), SHORT_TERM (61-80), MEDIUM_TERM (31-60), and MONITOR (0-30). "
+        "Identifies best safe candidate resettlement site for each settlement. "
+        "NOTE: Decision-support tool for authorized disaster management officials; does not replace executive command."
     ),
 )
-def get_relocation_sites(
-    min_suitability: float = Query(0.0, ge=0.0, le=100.0, description="Filter sites with minimum suitability score"),
-    min_capacity: int = Query(0, ge=0, description="Filter sites with minimum available capacity buffer"),
+def get_relocation_priorities(
+    priority: Optional[str] = Query(None, description="Filter by priority tier: IMMEDIATE, SHORT_TERM, MEDIUM_TERM, MONITOR"),
     db: Session = Depends(get_db),
-):
-    """List candidate resettlement parcels filtered by minimum score and capacity."""
+) -> HabitationPrioritiesSummaryResponse:
+    """Compile multi-habitation relocation priority rankings and regional breakdown."""
     try:
-        sites = get_all_relocation_sites_from_db(
-            db,
-            min_suitability=min_suitability,
-            min_capacity=min_capacity,
-        )
+        summary = compute_all_habitations_priorities_summary(db)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Database query error fetching relocation sites: {str(e)}",
+            detail=f"Error calculating relocation priorities summary: {str(e)}",
         )
 
-    return [RelocationSiteResponse(**s) for s in sites]
+    if priority:
+        prio_upper = priority.strip().upper()
+        summary.priorities = [p for p in summary.priorities if p.priority == prio_upper]
+
+    return summary
 
 
 @router.get(
-    "/relocation-sites/nearby/{habitation_id}",
-    response_model=NearbySitesSummaryResponse,
-    summary="Find Suitable Relocation Sites Near Affected Habitation",
+    "/priorities/{habitation_id}",
+    response_model=HabitationPriorityResponse,
+    summary="Calculate Habitation Relocation Priority",
     description=(
-        "Performs spatial GIS ellipsoidal distance analysis to rank candidate relocation parcels "
-        "within proximity radius of a vulnerable habitation. Strictly excludes any sites overlapping "
-        "active VERY_HIGH hazard zones."
+        "Calculates 0-100 relocation priority score and urgency classification for a specific habitation. "
+        "Evaluates multi-hazard risk, demographic vulnerability, exposed population scale, disaster history, "
+        "infrastructure fragility, evacuation bottlenecks, and proximity to safe relocation parcels."
     ),
 )
-def get_nearby_relocation_sites(
+def get_habitation_priority(
     habitation_id: uuid.UUID,
-    max_distance_km: float = Query(35.0, ge=1.0, le=200.0, description="Search radius in kilometers"),
-    min_capacity: int = Query(50, ge=0, description="Minimum available capacity buffer"),
-    limit: int = Query(5, ge=1, le=50, description="Max candidate sites to rank"),
     db: Session = Depends(get_db),
-):
-    """Rank nearby candidate resettlement sites for a specific vulnerable habitation."""
+) -> HabitationPriorityResponse:
+    """Calculate transparent relocation priority for an individual vulnerable settlement."""
     try:
-        result = find_suitable_nearby_sites_for_habitation(
-            db=db,
-            habitation_id=habitation_id,
-            max_distance_meters=max_distance_km * 1000.0,
-            min_capacity=min_capacity,
-            limit=limit,
-        )
+        priority_data = compute_habitation_priority_from_db(db, habitation_id)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Spatial query error finding nearby sites: {str(e)}",
+            detail=f"Error calculating habitation relocation priority: {str(e)}",
         )
 
-    if "error" in result:
+    if not priority_data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Habitation with id '{habitation_id}' not found.",
         )
 
-    return NearbySitesSummaryResponse(**result)
+    return priority_data
 
 
 @router.get(
-    "/relocation-sites/{id}",
-    response_model=RelocationSiteResponse,
-    summary="Get Relocation Site Profile",
-    description="Fetches detailed attributes, capacity figures, and GeoJSON geometry for a single candidate site.",
-)
-def get_relocation_site(
-    id: uuid.UUID,
-    db: Session = Depends(get_db),
-):
-    """Retrieve single relocation site by UUID."""
-    try:
-        site = get_relocation_site_by_id_from_db(db, id)
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Database query error retrieving relocation site: {str(e)}",
-        )
-
-    if not site:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Relocation site with id '{id}' not found.",
-        )
-
-    return RelocationSiteResponse(**site)
-
-
-@router.get(
-    "/relocation-sites/{id}/assessment",
-    response_model=SiteSuitabilityAssessmentResponse,
-    summary="Calculate Relocation-Site Suitability Assessment",
+    "/recommendation/{habitation_id}",
+    response_model=HabitationRelocationRecommendationResponse,
+    summary="Generate Actionable Relocation Allocation Recommendation",
     description=(
-        "Calculates transparent 0-100 composite suitability score considering flood risk, landslide risk, "
-        "slope, elevation, available land area, road access, hospital/school proximity, water & electricity availability, "
-        "current occupancy, and carrying capacity. Generates category sub-scores (hazard_safety_score, accessibility_score, "
-        "infrastructure_score, capacity_score), strengths, limitations, and classification bracket."
+        "Produces an actionable relocation allocation plan identifying the best suitable candidate site, "
+        "checking capacity sufficiency against vulnerable population, identifying alternative backup parcels, "
+        "and attaching decision-support disclaimers."
     ),
 )
-def get_site_assessment(
-    id: uuid.UUID,
+def get_relocation_recommendation(
+    habitation_id: uuid.UUID,
     db: Session = Depends(get_db),
-):
-    """Calculate and return explainable suitability evaluation for a relocation site."""
+) -> HabitationRelocationRecommendationResponse:
+    """Generate structured relocation recommendation for administrative decision support."""
     try:
-        assessment = compute_site_assessment_from_db(db, id)
+        recommendation = compute_habitation_priority_from_db(db, habitation_id)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Error evaluating site suitability: {str(e)}",
+            detail=f"Error generating relocation recommendation: {str(e)}",
         )
 
-    if "error" in assessment:
+    if not recommendation or "error" in recommendation:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Relocation site with id '{id}' not found.",
+            detail=f"Habitation with id '{habitation_id}' not found.",
         )
 
-    return SiteSuitabilityAssessmentResponse(**assessment)
+    return HabitationRelocationRecommendationResponse(**recommendation)
 
 
 @router.get(
-    "/relocation-sites/{id}/capacity",
-    response_model=SiteCarryingCapacityResponse,
-    summary="Calculate Relocation-Site Carrying Capacity Assessment",
-    description=(
-        "Calculates transparent sustainable carrying capacity for a candidate relocation site. "
-        "Adheres to Liebig's Law of the Minimum (bottleneck principle) evaluating usable buildable land area, "
-        "safe resettlement density, potable water yield (70 LPCD), decentralized sanitation, healthcare surge, "
-        "electricity grid limits, road accessibility, and existing population. Returns gross capacity, "
-        "infrastructure capacity, water capacity, final capacity, available capacity, and dynamic limiting factors."
-    ),
+    "/summary",
+    summary="Get High-Level Relocation Urgency Summary",
+    description="Returns aggregate counts of immediate, short-term, and medium-term relocation needs.",
 )
-def get_site_capacity(
-    id: uuid.UUID,
-    db: Session = Depends(get_db),
-):
-    """Calculate and return transparent multi-pillar carrying capacity assessment for a relocation site."""
-    try:
-        capacity_result = compute_site_capacity_from_db(db, id)
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Error evaluating site carrying capacity: {str(e)}",
-        )
-
-    if "error" in capacity_result:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Relocation site with id '{id}' not found.",
-        )
-
-    return SiteCarryingCapacityResponse(**capacity_result)
+def get_relocation_summary(db: Session = Depends(get_db)) -> Dict[str, Any]:
+    summary = compute_all_habitations_priorities_summary(db)
+    if isinstance(summary, dict):
+        return {
+            "total_habitations": summary.get("total_habitations", 0),
+            "immediate_count": summary.get("immediate_count", 0),
+            "short_term_count": summary.get("short_term_count", 0),
+            "medium_term_count": summary.get("medium_term_count", 0),
+            "monitor_count": summary.get("monitor_count", 0),
+            "average_priority_score": summary.get("average_priority_score", 0.0),
+            "calculated_at": summary.get("calculated_at"),
+        }
+    return {
+        "total_habitations": getattr(summary, "total_habitations", 0),
+        "immediate_count": getattr(summary, "immediate_count", 0),
+        "short_term_count": getattr(summary, "short_term_count", 0),
+        "medium_term_count": getattr(summary, "medium_term_count", 0),
+        "monitor_count": getattr(summary, "monitor_count", 0),
+        "average_priority_score": getattr(summary, "average_priority_score", 0.0),
+        "calculated_at": getattr(summary, "calculated_at", None),
+    }

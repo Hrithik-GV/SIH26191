@@ -79,6 +79,26 @@ async def validation_exception_handler(
     )
 
 
+async def sqlalchemy_exception_handler(
+    request: Request, exc: Exception
+) -> JSONResponse:
+    """Handler for database errors (e.g. database unreachable or query failed)."""
+    logger.error(
+        f"Database error on {request.url.path}: {str(exc)}"
+    )
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={
+            "success": False,
+            "error": {
+                "message": "Database service is temporarily unavailable.",
+                "type": "DatabaseUnavailable",
+                "details": str(exc),
+            },
+        },
+    )
+
+
 async def generic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Fallback handler for unhandled internal exceptions."""
     logger.exception(

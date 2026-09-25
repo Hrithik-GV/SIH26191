@@ -1,116 +1,91 @@
-import json
+"""Hazard API Router: Red Zones, Severity Filtering, and GeoJSON Collections."""
+
 import uuid
+import math
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
-from sqlalchemy import text
 
 from backend.app.db.session import get_db
-from backend.app.models.hazard_zone import HazardZone
+from backend.app.schemas.common import PaginatedResponse, GeoJSONFeatureCollection
 from backend.app.schemas.risk import HazardZoneResponse
+from backend.app.services.hazard_service import HazardService
 
-router = APIRouter()
+router = APIRouter(prefix="/hazards", tags=["Hazard Zones"])
 
 
 @router.get(
-    "/hazards",
-    response_model=List[HazardZoneResponse],
-    summary="List All Hazard Red Zones",
-    description="Retrieve all hazard zones with GeoJSON-compatible geometry, filterable by hazard type and severity.",
+    "",
+    response_model=PaginatedResponse[HazardZoneResponse],
+    summary="List All Hazard Red Zones with Pagination & Filtering",
+    description="Retrieve hazard red zones with GeoJSON polygon geometry, pagination, filtering by type/severity, and sorting.",
 )
 def list_hazard_zones(
-    hazard_type: Optional[str] = Query(None, description="Filter by hazard type (e.g. landslide, flash_flood)"),
-    severity: Optional[str] = Query(None, description="Filter by severity (e.g. VERY_HIGH, HIGH, MODERATE)"),
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    page_size: int = Query(20, ge=1, le=100, description="Items per page"),
+    hazard_type: Optional[str] = Query(None, description="Filter by hazard type (e.g. landslide, flash_flood, cloudburst)"),
+    severity: Optional[str] = Query(None, description="Filter by severity (VERY_HIGH, HIGH, MODERATE, LOW)"),
+    min_score: Optional[float] = Query(None, ge=0, le=100, description="Minimum risk score threshold"),
+    sort_by: str = Query("risk_score", description="Sort field: risk_score, hazard_type, severity, timestamp"),
+    order: str = Query("desc", pattern="^(asc|desc)$", description="Sort order: asc or desc"),
     db: Session = Depends(get_db),
-):
-    """Fetch hazard red zones with PostGIS ST_AsGeoJSON geometry."""
-    query = """
-        SELECT 
-            id,
-            hazard_type,
-            risk_score,
-            severity,
-            source,
-            timestamp,
-            ST_AsGeoJSON(geometry) AS geojson
-        FROM hazard_zones
-        WHERE 1=1
-    """
-    params = {}
-    if hazard_type:
-        query += " AND LOWER(hazard_type) = LOWER(:hazard_type)"
-        params["hazard_type"] = hazard_type
-    if severity:
-        query += " AND UPPER(severity) = UPPER(:severity)"
-        params["severity"] = severity
+) -> PaginatedResponse[HazardZoneResponse]:
+    """Retrieves paginated hazard zones utilizing HazardService."""
+    items, total = HazardService.get_hazard_zones(
+        db=db,
+        page=page,
+        page_size=page_size,
+        hazard_type=hazard_type,
+        severity=severity,
+        min_score=min_score,
+        sort_by=sort_by,
+        order=order,
+    )
+    total_pages = math.ceil(total / page_size) if total > 0 else 1
 
-    query += " ORDER BY risk_score DESC;"
-
-    try:
-        rows = db.execute(text(query), params).mappings().all()
-    except Exception as e:
-        # Graceful fallback if database is in disconnected/initialization state
-        return []
-
-    results = []
-    for r in rows:
-        results.append(
-            HazardZoneResponse(
-                id=r["id"],
-                hazard_type=r["hazard_type"],
-                risk_score=r["risk_score"],
-                severity=r["severity"],
-                source=r["source"],
-                timestamp=r["timestamp"],
-                geometry=json.loads(r["geojson"]) if r["geojson"] else {},
-            )
-        )
-    return results
+    return PaginatedResponse(
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=total_pages,
+        items=items,
+    )
 
 
 @router.get(
-    "/hazards/{id}",
+    "/geojson",
+    response_model=GeoJSONFeatureCollection,
+    summary="Get GeoJSON FeatureCollection of All Hazard Zones",
+    description="Returns standard RFC 7946 GeoJSON FeatureCollection optimized for MapLibre GL and GIS map layers.",
+)
+def get_hazard_zones_geojson(
+    hazard_type: Optional[str] = Query(None, description="Filter by hazard type"),
+    severity: Optional[str] = Query(None, description="Filter by severity"),
+    db: Session = Depends(get_db),
+) -> GeoJSONFeatureCollection:
+    """Returns GeoJSON FeatureCollection of hazard red zones."""
+    return HazardService.get_feature_collection(
+        db=db,
+        hazard_type=hazard_type,
+        severity=severity,
+    )
+
+
+@router.get(
+    "/{id}",
     response_model=HazardZoneResponse,
     summary="Get Hazard Zone by ID",
-    description="Retrieve single hazard red zone details and GeoJSON geometry.",
+    description="Retrieve a single hazard red zone details and GeoJSON polygon geometry.",
 )
 def get_hazard_zone(
     id: uuid.UUID,
     db: Session = Depends(get_db),
-):
-    """Fetch a single hazard zone by UUID."""
-    stmt = text("""
-        SELECT 
-            id,
-            hazard_type,
-            risk_score,
-            severity,
-            source,
-            timestamp,
-            ST_AsGeoJSON(geometry) AS geojson
-        FROM hazard_zones
-        WHERE id = :hz_id;
-    """)
-    try:
-        row = db.execute(stmt, {"hz_id": id}).mappings().first()
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Database unavailable: {str(e)}",
-        )
-
-    if not row:
+) -> HazardZoneResponse:
+    """Fetches a single hazard zone by UUID."""
+    hz = HazardService.get_hazard_zone_by_id(db, id)
+    if not hz:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Hazard zone with id '{id}' not found.",
         )
-
-    return HazardZoneResponse(
-        id=row["id"],
-        hazard_type=row["hazard_type"],
-        risk_score=row["risk_score"],
-        severity=row["severity"],
-        source=row["source"],
-        timestamp=row["timestamp"],
-        geometry=json.loads(row["geojson"]) if row["geojson"] else {},
-    )
+    return hz

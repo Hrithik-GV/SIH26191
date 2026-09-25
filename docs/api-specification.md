@@ -9,24 +9,82 @@ Base URLs:
 
 ## 📌 Endpoints Overview
 
+The backend exposes 9 primary domain API groups along with system diagnostics, available under both `/api` and `/api/v1`:
+
+### 1. Executive Dashboard (`/api/dashboard`)
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET` | `/health` | System health check, database ping & PostGIS status |
-| `GET` | `/api/v1/ping` | Lightweight liveness probe |
-| `GET` | `/api/hazards` | List all active hazard red zones with GeoJSON geometry |
-| `GET` | `/api/hazards/{id}` | Retrieve specific hazard zone by UUID |
+| `GET` | `/api/dashboard` | Executive situational overview: habitations, critical zones, population at risk, relocation counts by tier, total vs available capacity, active alerts, and latest data timestamps |
+
+### 2. Hazard Zones (`/api/hazards`)
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/hazards` | Paginated listing of active hazard red zones with filtering (type, severity, min_score) and sorting |
+| `GET` | `/api/hazards/geojson` | RFC 7946 GeoJSON FeatureCollection of all active hazard polygons |
+| `GET` | `/api/hazards/{id}` | Single hazard red zone profile and geometry by UUID |
+
+### 3. Habitations & Settlements (`/api/habitations`)
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/habitations` | Paginated listing of settlements with search, filtering (district, taluk, min_pop), and sorting |
+| `GET` | `/api/habitations/geojson` | RFC 7946 GeoJSON FeatureCollection of all habitation boundary polygons |
+| `GET` | `/api/habitations/{id}` | Detailed habitation demographic profile and spatial boundary |
 | `GET` | `/api/habitations/{id}/risk` | Transparent 0–100 hazard risk score and factor breakdown |
-| `GET` | `/api/risk/summary` | Multi-habitation risk summary, ranking and severity breakdown |
-| `GET` | `/api/vulnerability/{habitation_id}` | Transparent 0–100 population vulnerability score & demographics |
-| `GET` | `/api/vulnerability/summary` | Multi-habitation population vulnerability summary & rankings |
-| `GET` | `/api/relocation-sites` | List candidate resettlement sites with available area & capacity |
+| `GET` | `/api/habitations/{id}/vulnerability` | Transparent 0–100 population vulnerability score & demographics |
+
+### 4. Population Vulnerability (`/api/vulnerability`)
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/vulnerability/summary` | Multi-settlement demographic vulnerability summary, severity breakdown, and rankings |
+| `GET` | `/api/vulnerability/geojson` | RFC 7946 GeoJSON FeatureCollection of settlements styled by vulnerability severity |
+| `GET` | `/api/vulnerability/{habitation_id}` | Detailed 9-factor socio-demographic vulnerability score & explanations |
+
+### 5. Candidate Relocation Sites (`/api/relocation-sites`)
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/relocation-sites` | Paginated candidate resettlement sites with available land, population, and capacity |
+| `GET` | `/api/relocation-sites/geojson` | RFC 7946 GeoJSON FeatureCollection of candidate relocation parcel boundaries |
 | `GET` | `/api/relocation-sites/{id}` | Detailed candidate relocation parcel profile & geometry |
-| `GET` | `/api/relocation-sites/{id}/assessment` | Explainable 0–100 suitability score, category sub-scores & factors |
-| `GET` | `/api/relocation-sites/{id}/capacity` | Multi-pillar carrying capacity assessment & limiting bottlenecks |
-| `GET` | `/api/relocation-sites/nearby/{habitation_id}` | Spatial query finding safe relocation sites near affected habitation |
-| `GET` | `/api/relocation/priorities` | Multi-habitation relocation urgency ranking & regional summary |
-| `GET` | `/api/relocation/priorities/{habitation_id}` | Habitation 0-100 relocation priority score, factors & reasons |
-| `GET` | `/api/relocation/recommendation/{habitation_id}` | Actionable recommendation mapping to best safe relocation parcel |
+| `GET` | `/api/relocation-sites/{id}/assessment` | 4-pillar explainable suitability assessment (hazard, access, infra, capacity) |
+| `GET` | `/api/relocation-sites/{id}/capacity` | Liebig's Law multi-pillar carrying capacity bottleneck evaluation |
+| `GET` | `/api/relocation-sites/nearby/{habitation_id}` | PostGIS spatial distance ranking of safe relocation sites near affected habitation |
+
+### 6. Relocation Urgency & Priorities (`/api/relocation`)
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/relocation/priorities` | Multi-habitation urgency ranking & summary (IMMEDIATE, SHORT_TERM, MEDIUM_TERM, MONITOR) |
+| `GET` | `/api/relocation/priorities/{habitation_id}` | Settlement 0–100 relocation priority score, factors, reasons, and matched site |
+| `GET` | `/api/relocation/recommendation/{habitation_id}` | Actionable resettlement recommendation with capacity verification & alternative parcels |
+| `GET` | `/api/relocation/summary` | Lightweight count breakdown of habitations across urgency tiers |
+
+### 7. Emergency Alerts & Warnings (`/api/alerts`)
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/alerts` | Paginated active disaster events and NDMA SACHET CAP emergency warnings |
+| `GET` | `/api/alerts/geojson` | RFC 7946 GeoJSON FeatureCollection of active alert locations and danger zones |
+| `GET` | `/api/alerts/{id}` | Single disaster event or CAP alert detail by UUID |
+
+### 8. Data Sources & Real-Time Ingestion (`/api/data-sources`)
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/data-sources/status` | Operational health, latency, freshness, and sync logs for MOSDAC, CWC, NDMA, IMD |
+| `GET` | `/api/data-sources/{source_id}` | Detailed telemetry and caching metadata for an individual data provider |
+| `POST` | `/api/data-sources/trigger` | On-demand administrative ingestion sync triggering PostGIS updates |
+
+### 9. Analytics & Visualizations (`/api/analytics`)
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/analytics` | Consolidated analytics payload formatted for frontend charts (Recharts) |
+| `GET` | `/api/analytics/risk-distribution` | Population and settlement histogram across 4 risk brackets |
+| `GET` | `/api/analytics/vulnerability-breakdown` | Comparative analysis across 9 demographic vulnerability factors |
+| `GET` | `/api/analytics/capacity-vs-need` | Relocation site intake capacity versus matched vulnerable population demand |
+| `GET` | `/api/analytics/hazard-exposure` | Settlement and population exposure broken down by hazard type |
+
+### Diagnostics & Health
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/health` | System health check, PostgreSQL/PostGIS connectivity, and background worker status |
+| `GET` | `/api/ping` | Lightweight liveness probe |
 
 ---
 
@@ -810,3 +868,137 @@ Returns detailed telemetry health, freshness, and latency for a single data sour
 
 Manually executes an immediate ingestion run, updating PostGIS and status registry.
 - Optional query parameter: `?source_id=mosdac_isro` to trigger a specific feed.
+
+---
+
+### 17. Executive Dashboard
+**`GET /api/dashboard`**
+
+Returns consolidated situational KPIs and data freshness timestamps for senior decision-makers and command dashboard widgets.
+
+#### Response Example (`200 OK`):
+```json
+{
+  "total_habitations": 18,
+  "habitations_in_critical_zones": 6,
+  "population_at_risk": 5840,
+  "immediate_relocation_count": 3,
+  "short_term_relocation_count": 3,
+  "medium_term_relocation_count": 7,
+  "monitor_relocation_count": 5,
+  "total_relocation_capacity": 8500,
+  "available_relocation_capacity": 5200,
+  "capacity_deficit": 0,
+  "active_alerts": 4,
+  "average_risk_score": 64.5,
+  "average_vulnerability_score": 68.2,
+  "latest_data_timestamps": {
+    "rainfall_telemetry": "2026-09-25T18:30:00Z",
+    "river_gauging": "2026-09-25T18:30:00Z",
+    "emergency_alerts": "2026-09-25T18:30:00Z",
+    "last_ingestion_cycle": "2026-09-25T18:30:00Z",
+    "dashboard_computed": "2026-09-26T00:30:00Z"
+  },
+  "most_urgent_habitations": [
+    {
+      "habitation_id": "11111111-1111-4111-8111-111111111111",
+      "habitation_name": "Mundakkai Settlement",
+      "district": "Wayanad",
+      "priority": "IMMEDIATE",
+      "priority_score": 89,
+      "hazard_score": 92,
+      "vulnerability_score": 85,
+      "vulnerable_population": 1450,
+      "recommended_site_name": "Meppadi Safe Plateau Zone A",
+      "recommended_site_distance_km": 4.2
+    }
+  ]
+}
+```
+
+---
+
+### 18. Habitations API Group
+**`GET /api/habitations`**
+- Query Parameters: `page` (int, default 1), `page_size` (int, default 20), `district` (string), `taluk` (string), `search` (string), `min_population` (int), `sort_by` (name, population, vulnerable_population, area_sqm), `order` (asc, desc).
+- Returns: `PaginatedResponse[HabitationItem]` with RFC 7946 polygon geometry.
+
+**`GET /api/habitations/geojson`**
+- Returns: `GeoJSONFeatureCollection` representing all settlements as RFC 7946 features with demographic properties.
+
+**`GET /api/habitations/{id}`**
+- Returns: `HabitationDetail` with complete demographic breakdown, terrain attributes, and GeoJSON geometry.
+
+---
+
+### 19. Emergency Alerts API Group
+**`GET /api/alerts`**
+- Query Parameters: `page` (int), `page_size` (int), `disaster_type` (flood, landslide, etc.), `severity` (CRITICAL, HIGH, etc.), `sort_by` (event_time, severity), `order` (asc, desc).
+- Returns: `PaginatedResponse[AlertItem]` with Point or Polygon geometry.
+
+**`GET /api/alerts/geojson`**
+- Returns: `GeoJSONFeatureCollection` of active emergency alerts and warnings.
+
+**`GET /api/alerts/{id}`**
+- Returns: Single `AlertItem` detail by UUID.
+
+---
+
+### 20. Analytics & Chart Visualizations API Group
+**`GET /api/analytics`**
+- Returns consolidated payload with 4 chart-ready structures optimized for Recharts:
+  - `risk_distribution`: 4 brackets (0-30 LOW, 31-60 MODERATE, 61-80 HIGH, 81-100 CRITICAL) with settlement counts, total population, and vulnerable lives.
+  - `vulnerability_factors`: Comparative breakdown across 9 demographic vulnerability factors.
+  - `capacity_vs_need`: Candidate relocation intake capacity versus matched displaced population demand (SURPLUS, BALANCED, DEFICIT).
+  - `hazard_exposures`: Population and settlement exposure grouped by hazard type (flood, landslide, cloudburst, debris flow).
+
+Sub-endpoints for granular chart queries:
+- **`GET /api/analytics/risk-distribution`**
+- **`GET /api/analytics/vulnerability-breakdown`**
+- **`GET /api/analytics/capacity-vs-need`**
+- **`GET /api/analytics/hazard-exposure`**
+
+---
+
+## 📐 Cross-Cutting Architectural Standards
+
+### 1. Spatial GeoJSON Compliance (RFC 7946)
+All spatial responses return valid GeoJSON:
+- Geometry objects: `{"type": "Point" | "Polygon" | "MultiPolygon", "coordinates": [...]}`
+- Spatial collections: `{"type": "FeatureCollection", "features": [{"type": "Feature", "geometry": {...}, "properties": {...}}]}`
+
+### 2. Standardized Pagination
+Endpoints returning lists follow `PaginatedResponse[T]`:
+```json
+{
+  "total": 18,
+  "page": 1,
+  "page_size": 20,
+  "total_pages": 1,
+  "items": [...]
+}
+```
+
+### 3. Structured Error Responses
+All API errors return consistent JSON responses:
+```json
+{
+  "success": false,
+  "error": {
+    "message": "Habitation with id '...' not found.",
+    "type": "HTTPException",
+    "details": {}
+  }
+}
+```
+
+### 4. Decoupled Service Layer
+Business logic, spatial queries, and multi-criteria scoring calculations reside strictly in `backend/app/services/`:
+- `DashboardService`: Executive metric aggregations and freshness tracking
+- `HabitationService`: Spatial settlements querying and GeoJSON assembly
+- `HazardService`: Red zone filtering and spatial bounding
+- `AlertService`: Real-time emergency warning feeds
+- `AnalyticsService`: Chart-ready statistical distributions and capacity vs need balancing
+- `risk_engine`, `vulnerability_engine`, `suitability_engine`, `capacity_engine`, `priority_engine`
+
+Route handlers in `backend/app/api/v1/endpoints/` only handle HTTP validation, query parameter parsing, dependency injection, and HTTP status code formatting.

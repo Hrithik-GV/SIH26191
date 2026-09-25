@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from sqlalchemy.exc import SQLAlchemyError
 
 from backend.app.core.config import settings
 from backend.app.core.logging import logger
@@ -11,6 +12,7 @@ from backend.app.core.exceptions import (
     app_exception_handler,
     http_exception_handler,
     validation_exception_handler,
+    sqlalchemy_exception_handler,
     generic_exception_handler,
 )
 from backend.app.api.v1.api import api_router
@@ -72,6 +74,7 @@ def create_application() -> FastAPI:
     application.add_exception_handler(AppException, app_exception_handler)
     application.add_exception_handler(StarletteHTTPException, http_exception_handler)
     application.add_exception_handler(RequestValidationError, validation_exception_handler)
+    application.add_exception_handler(SQLAlchemyError, sqlalchemy_exception_handler)
     application.add_exception_handler(Exception, generic_exception_handler)
 
     # 3. Direct Root & Health Endpoints
