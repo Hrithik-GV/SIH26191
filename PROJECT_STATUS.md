@@ -17,9 +17,49 @@
 | **Phase 3.6** | **Population Vulnerability Assessment Engine & APIs** | **Completed** | 2026-09-25 |
 | **Phase 3.7** | **Relocation-Site Suitability Assessment Engine & APIs** | **Completed** | 2026-09-25 |
 | **Phase 4.1** | **Relocation-Site Carrying-Capacity Assessment Engine & APIs** | **Completed** | 2026-09-25 |
-| **Phase 4.2** | AI/ML Relocation Urgency Prioritization & Recommendation Allocator | Pending / Next | — |
-| **Phase 5** | Interactive MapLibre GL Frontend & Analytics Visualization | Pending | — |
+| **Phase 4.2** | **Relocation Prioritization Engine & Decision-Support APIs** | **Completed** | 2026-09-25 |
+| **Phase 5** | Interactive MapLibre GL Frontend & Analytics Visualization | Pending / Next | — |
 | **Phase 6** | End-to-End Integration, Validation & Hackathon Hardening | Pending | — |
+
+---
+
+## ✅ Phase 4.2: Detailed Accomplishments (Relocation Prioritization Engine)
+
+### 1. Transparent 7-Factor Relocation Urgency Model
+- [x] Defined non-black-box prioritization formula in `backend/app/core/priority_config.py` and `backend/app/services/priority_engine.py`:
+  - **Hazard Risk (25%)**: Multi-hazard exposure score from risk engine.
+  - **Population Vulnerability (20%)**: Socio-demographic fragility score from vulnerability engine.
+  - **Exposed Population Scale (15%)**: Total vulnerable lives requiring assisted evacuation.
+  - **Disaster History (10%)**: Frequency of past recorded mass movements and flood events.
+  - **Infrastructure Vulnerability (10%)**: Kutcha dwellings and utility fragility.
+  - **Evacuation Difficulty (10%)**: Critical transit bottlenecks, single-access bridges, terrain isolation.
+  - **Site Availability (10%)**: Proximity and capacity sufficiency of safe candidate relocation parcels.
+- [x] Prototype classification brackets:
+  - `81 – 100` = **IMMEDIATE**
+  - `61 – 80` = **SHORT_TERM**
+  - `31 – 60` = **MEDIUM_TERM**
+  - `0 – 30` = **MONITOR**
+  *(Explicitly noted as prototype research thresholds, not official government standards).*
+
+### 2. Spatial Multi-Criteria Site Matching Algorithm
+- [x] Ranks candidate parcels using spatial distance + suitability + available capacity:
+  - $\text{Match Score} = 0.40 \cdot \text{Proximity} + 0.35 \cdot \text{Suitability} + 0.25 \cdot \text{Capacity Sufficiency}$.
+  - Identifies `best_suitable_site` and ranks `alternative_sites`.
+  - Strictly excludes any parcels intersecting active `VERY_HIGH` hazard zones.
+
+### 3. Human-in-the-Loop Decision Support Mandate
+- [x] Clear ethical governance disclaimer included across models and API responses: system provides decision support for authorized authorities (NDMA/SDMA/DDMA) and does NOT make executive relocation decisions.
+
+### 4. REST API Endpoints
+- [x] Implemented in `backend/app/api/v1/endpoints/prioritization.py`:
+  - `GET /api/relocation/priorities`: Regional summary ranking all habitations by urgency score with counts of IMMEDIATE, SHORT_TERM, MEDIUM_TERM, and MONITOR settlements.
+  - `GET /api/relocation/priorities/{habitation_id}`: Detailed 0–100 priority score, factor breakdown, explainable reasons, and best matching site.
+  - `GET /api/relocation/recommendation/{habitation_id}`: Actionable relocation recommendation payload with best matching parcel, capacity sufficiency check, alternative sites, and decision-support disclaimer.
+
+### 5. Automated Unit Tests & Documentation
+- [x] Implemented dedicated test suite in `backend/tests/test_priority_engine.py` (12 tests).
+- [x] Pytest suite: **79/79 tests passing** across the backend.
+- [x] Documented complete API contracts in `docs/api-specification.md`.
 
 ---
 

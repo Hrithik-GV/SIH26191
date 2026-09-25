@@ -24,6 +24,9 @@ Base URLs:
 | `GET` | `/api/relocation-sites/{id}/assessment` | Explainable 0–100 suitability score, category sub-scores & factors |
 | `GET` | `/api/relocation-sites/{id}/capacity` | Multi-pillar carrying capacity assessment & limiting bottlenecks |
 | `GET` | `/api/relocation-sites/nearby/{habitation_id}` | Spatial query finding safe relocation sites near affected habitation |
+| `GET` | `/api/relocation/priorities` | Multi-habitation relocation urgency ranking & regional summary |
+| `GET` | `/api/relocation/priorities/{habitation_id}` | Habitation 0-100 relocation priority score, factors & reasons |
+| `GET` | `/api/relocation/recommendation/{habitation_id}` | Actionable recommendation mapping to best safe relocation parcel |
 
 ---
 
@@ -507,5 +510,177 @@ Carrying capacity is NOT a simplistic "area × population density" calculation. 
     "framework_status": "PROTOTYPE_ASSUMPTIONS_CIVIC_RESIDENCE"
   },
   "calculated_at": "2026-09-25T18:10:00Z"
+}
+```
+
+---
+
+## 🎯 Relocation Prioritization & Recommendation Engine Specification
+
+### 1. Prototype Factors Evaluated (0–100 Scale)
+The engine calculates transparent 0–100 relocation urgency scores evaluating 7 distinct factors:
+1. **Hazard Risk (`hazard_risk`, 25%)**: Multi-hazard exposure score (rainfall, flood, landslide, terrain slope).
+2. **Population Vulnerability (`population_vulnerability`, 20%)**: Socio-demographic fragility (elderly, children, disabilities, density).
+3. **Exposed Population Scale (`exposed_population`, 15%)**: Total vulnerable human lives requiring urgent assisted evacuation.
+4. **Disaster History (`disaster_history`, 10%)**: Frequency of past recorded mass movements, floods, or casualties in vicinity.
+5. **Infrastructure Vulnerability (`infrastructure_vulnerability`, 10%)**: Fragile non-engineered dwellings (kutcha housing) and utility fragility.
+6. **Evacuation Difficulty (`evacuation_difficulty`, 10%)**: Critical transit bottlenecks, single-access bridges, and terrain isolation.
+7. **Relocation Site Availability (`site_availability`, 10%)**: Availability and proximity of verified safe candidate relocation parcels.
+
+### 2. Prototype Classification Thresholds
+- **`81 – 100`**: **`IMMEDIATE`** (Top urgent priority; high hazard overlap and vulnerable population require swift intervention)
+- **`61 – 80`**: **`SHORT_TERM`** (High risk; relocation preparations and site reservation required)
+- **`31 – 60`**: **`MEDIUM_TERM`** (Moderate risk; scheduled structural mitigation and seasonal evacuation planning)
+- **`0 – 30`**: **`MONITOR`** (Low risk; baseline disaster surveillance and early warning maintenance)
+
+> **⚠️ Governance Notice**: These thresholds are prototype research guidelines and must NOT be represented as official statutory government standards.
+
+### 3. Spatial Multi-Criteria Site Matching Algorithm
+Candidate relocation parcels are ranked for each habitation using:
+$$\text{Match Score} = 0.40 \cdot \text{Proximity Score} + 0.35 \cdot \text{Suitability Score} + 0.25 \cdot \text{Capacity Sufficiency Score}$$
+- **Proximity**: PostGIS ellipsoidal geography distance ($\le 3\,\text{km} \to 100$, attenuating to $35\,\text{km}$).
+- **Suitability**: $0-100$ multi-criteria suitability score.
+- **Capacity Sufficiency**: Evaluates whether available capacity buffer $\ge$ vulnerable population.
+- **Safety**: Strictly excludes parcels intersecting active `VERY_HIGH` hazard zones.
+
+### 4. Human-in-the-Loop Decision Support Mandate
+The platform does **NOT** claim that AI makes executive relocation decisions. All recommendations serve strictly as decision support for authorized administrative leadership (NDMA / SDMA / DDMA).
+
+---
+
+### 11. Multi-Habitation Relocation Priorities Summary
+**`GET /api/relocation/priorities`**
+
+#### Response Example (`200 OK`):
+```json
+{
+  "total_habitations": 4,
+  "immediate_count": 2,
+  "short_term_count": 1,
+  "medium_term_count": 1,
+  "monitor_count": 0,
+  "average_priority_score": 78.5,
+  "priorities": [
+    {
+      "habitation_id": "11111111-1111-4111-8111-111111111111",
+      "habitation_name": "Mundakkai Hamlet",
+      "district": "Wayanad",
+      "state": "Kerala",
+      "priority_score": 89,
+      "priority": "IMMEDIATE",
+      "vulnerable_population": 1450,
+      "total_population": 2200,
+      "hazard_score": 92,
+      "vulnerability_score": 86,
+      "reasons": [
+        "Critical multi-hazard risk (severe flood/landslide red-zone overlap and high precipitation)",
+        "High vulnerable population (1,450 persons requiring assisted evacuation)",
+        "Poor evacuation accessibility (terrain bottlenecks and vulnerable single-corridor egress)",
+        "Suitable relocation site available nearby (Meppadi Green Plateau at 4.2 km)"
+      ],
+      "recommended_site_id": "22222222-2222-4222-8222-222222222222",
+      "recommended_site_name": "Meppadi Green Plateau",
+      "recommended_site_distance_km": 4.2
+    }
+  ],
+  "decision_support_disclaimer": "DISCLAIMER: This relocation prioritization assessment and site recommendation is an automated decision-support analytical output intended for authorized disaster management authorities (NDMA, SDMA, DDMA)...",
+  "calculated_at": "2026-09-25T18:20:00Z"
+}
+```
+
+---
+
+### 12. Single Habitation Relocation Priority Assessment
+**`GET /api/relocation/priorities/{habitation_id}`**
+
+#### Response Example (`200 OK`):
+```json
+{
+  "habitation_id": "11111111-1111-4111-8111-111111111111",
+  "habitation_name": "Mundakkai Hamlet",
+  "district": "Wayanad",
+  "state": "Kerala",
+  "priority_score": 89,
+  "priority": "IMMEDIATE",
+  "factors": {
+    "hazard_risk": 92,
+    "population_vulnerability": 86,
+    "exposed_population": 85,
+    "disaster_history": 80,
+    "infrastructure_vulnerability": 75,
+    "evacuation_difficulty": 85,
+    "site_availability": 88
+  },
+  "reasons": [
+    "Critical multi-hazard risk (severe flood/landslide red-zone overlap and high precipitation)",
+    "High vulnerable population (1,450 persons requiring assisted evacuation)",
+    "Poor evacuation accessibility (terrain bottlenecks and vulnerable single-corridor egress)",
+    "Suitable relocation site available nearby (Meppadi Green Plateau at 4.2 km)"
+  ],
+  "vulnerable_population": 1450,
+  "total_population": 2200,
+  "recommended_site": {
+    "site_id": "22222222-2222-4222-8222-222222222222",
+    "site_name": "Meppadi Green Plateau",
+    "distance_km": 4.2,
+    "distance_meters": 4200.0,
+    "suitability_score": 88,
+    "classification": "HIGHLY SUITABLE",
+    "available_capacity": 2100,
+    "capacity_sufficient": true,
+    "match_score": 91.5
+  },
+  "decision_support_disclaimer": "DISCLAIMER: This relocation prioritization assessment and site recommendation is an automated decision-support analytical output intended for authorized disaster management authorities (NDMA, SDMA, DDMA)...",
+  "calculated_at": "2026-09-25T18:20:00Z"
+}
+```
+
+---
+
+### 13. Habitation Actionable Relocation Recommendation
+**`GET /api/relocation/recommendation/{habitation_id}`**
+
+#### Response Example (`200 OK`):
+```json
+{
+  "habitation_id": "11111111-1111-4111-8111-111111111111",
+  "habitation_name": "Mundakkai Hamlet",
+  "district": "Wayanad",
+  "state": "Kerala",
+  "priority": "IMMEDIATE",
+  "priority_score": 89,
+  "vulnerable_population": 1450,
+  "reasons": [
+    "Critical multi-hazard risk (severe flood/landslide red-zone overlap and high precipitation)",
+    "High vulnerable population (1,450 persons requiring assisted evacuation)",
+    "Poor evacuation accessibility (terrain bottlenecks and vulnerable single-corridor egress)",
+    "Suitable relocation site available nearby (Meppadi Green Plateau at 4.2 km)"
+  ],
+  "best_suitable_site": {
+    "site_id": "22222222-2222-4222-8222-222222222222",
+    "site_name": "Meppadi Green Plateau",
+    "distance_km": 4.2,
+    "distance_meters": 4200.0,
+    "suitability_score": 88,
+    "classification": "HIGHLY SUITABLE",
+    "available_capacity": 2100,
+    "capacity_sufficient": true,
+    "match_score": 91.5
+  },
+  "alternative_sites": [
+    {
+      "site_id": "33333333-3333-4333-8333-333333333333",
+      "site_name": "Kalpetta South Ridge",
+      "distance_km": 8.9,
+      "distance_meters": 8900.0,
+      "suitability_score": 84,
+      "classification": "HIGHLY SUITABLE",
+      "available_capacity": 1500,
+      "capacity_sufficient": true,
+      "match_score": 83.2
+    }
+  ],
+  "decision_support_disclaimer": "DISCLAIMER: This relocation prioritization assessment and site recommendation is an automated decision-support analytical output intended for authorized disaster management authorities (NDMA, SDMA, DDMA)...",
+  "calculated_at": "2026-09-25T18:20:00Z"
 }
 ```
