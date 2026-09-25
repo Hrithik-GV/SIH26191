@@ -8,6 +8,18 @@ import {
   FALLBACK_ANALYTICS,
   FALLBACK_DATA_SOURCES,
 } from '../data/fallbackData';
+import {
+  MULTI_HAZARD_GEOJSON,
+  FLOOD_ZONES_GEOJSON,
+  LANDSLIDE_ZONES_GEOJSON,
+  HEAVY_RAINFALL_GEOJSON,
+  HABITATIONS_GEOJSON,
+  RELOCATION_SITES_GEOJSON,
+  RIVERS_GEOJSON,
+  ROADS_GEOJSON,
+  HOSPITALS_GEOJSON,
+  SCHOOLS_GEOJSON,
+} from '../data/gisLayersData';
 
 // Base API configuration (proxied via Vite or direct)
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
@@ -145,23 +157,7 @@ export const getHabitationsGeoJSON = async () => {
   } catch (err) {
     return {
       isLive: false,
-      data: {
-        type: 'FeatureCollection',
-        features: FALLBACK_HABITATIONS.map((h) => ({
-          type: 'Feature',
-          geometry: h.geometry,
-          properties: {
-            id: h.id,
-            name: h.name,
-            population: h.population,
-            vulnerable_population: h.vulnerable_population,
-            risk_score: h.risk_score,
-            risk_severity: h.risk_severity,
-            vulnerability_score: h.vulnerability_score,
-            priority: h.priority,
-          },
-        })),
-      },
+      data: HABITATIONS_GEOJSON,
     };
   }
 };
@@ -274,22 +270,7 @@ export const getRelocationSitesGeoJSON = async () => {
   } catch (err) {
     return {
       isLive: false,
-      data: {
-        type: 'FeatureCollection',
-        features: FALLBACK_RELOCATION_SITES.map((s) => ({
-          type: 'Feature',
-          geometry: s.geometry,
-          properties: {
-            id: s.id,
-            name: s.name,
-            available_area: s.available_area,
-            estimated_capacity: s.estimated_capacity,
-            available_capacity: s.available_capacity,
-            suitability_score: s.suitability_score,
-            classification: s.classification,
-          },
-        })),
-      },
+      data: RELOCATION_SITES_GEOJSON,
     };
   }
 };
@@ -549,3 +530,103 @@ export const getAnalyticsOverview = async () => {
     return { isLive: false, data: FALLBACK_ANALYTICS };
   }
 };
+
+// 10. GIS Spatial Layers API (Multi-hazard, Floods, Landslides, Rainfall, Rivers, Roads, Hospitals, Schools)
+export const getGISLayersOverview = async () => {
+  try {
+    const res = await apiClient.get('/gis/layers');
+    return { isLive: true, data: res.data };
+  } catch (err) {
+    return {
+      isLive: false,
+      data: {
+        sector: 'Wayanad Disaster Zone',
+        layers: [
+          { id: 'multi-hazard', name: 'Multi-hazard risk' },
+          { id: 'flood-zones', name: 'Flood zones' },
+          { id: 'landslide-zones', name: 'Landslide zones' },
+          { id: 'heavy-rainfall', name: 'Heavy rainfall' },
+          { id: 'habitations', name: 'Vulnerable habitations' },
+          { id: 'relocation-sites', name: 'Relocation sites' },
+          { id: 'rivers', name: 'Rivers' },
+          { id: 'roads', name: 'Roads' },
+          { id: 'hospitals', name: 'Hospitals' },
+          { id: 'schools', name: 'Schools' },
+        ],
+      },
+    };
+  }
+};
+
+export const getGISMultiHazardGeoJSON = async () => {
+  try {
+    const res = await apiClient.get('/gis/multi-hazard');
+    return { isLive: true, data: res.data };
+  } catch (err) {
+    return { isLive: false, data: MULTI_HAZARD_GEOJSON };
+  }
+};
+
+export const getGISFloodZonesGeoJSON = async () => {
+  try {
+    const res = await apiClient.get('/gis/flood-zones');
+    return { isLive: true, data: res.data };
+  } catch (err) {
+    return { isLive: false, data: FLOOD_ZONES_GEOJSON };
+  }
+};
+
+export const getGISLandslideZonesGeoJSON = async () => {
+  try {
+    const res = await apiClient.get('/gis/landslide-zones');
+    return { isLive: true, data: res.data };
+  } catch (err) {
+    return { isLive: false, data: LANDSLIDE_ZONES_GEOJSON };
+  }
+};
+
+export const getGISRainfallGeoJSON = async () => {
+  try {
+    const res = await apiClient.get('/gis/rainfall');
+    return { isLive: true, data: res.data };
+  } catch (err) {
+    return { isLive: false, data: HEAVY_RAINFALL_GEOJSON };
+  }
+};
+
+export const getGISRiversGeoJSON = async () => {
+  try {
+    const res = await apiClient.get('/gis/rivers');
+    return { isLive: true, data: res.data };
+  } catch (err) {
+    return { isLive: false, data: RIVERS_GEOJSON };
+  }
+};
+
+export const getGISRoadsGeoJSON = async () => {
+  try {
+    const res = await apiClient.get('/gis/roads');
+    return { isLive: true, data: res.data };
+  } catch (err) {
+    return { isLive: false, data: ROADS_GEOJSON };
+  }
+};
+
+export const getGISHospitalsGeoJSON = async () => {
+  try {
+    const res = await apiClient.get('/gis/hospitals');
+    return { isLive: true, data: res.data };
+  } catch (err) {
+    return { isLive: false, data: HOSPITALS_GEOJSON };
+  }
+};
+
+export const getGISSchoolsGeoJSON = async () => {
+  try {
+    const res = await apiClient.get('/gis/schools');
+    return { isLive: true, data: res.data };
+  } catch (err) {
+    return { isLive: false, data: SCHOOLS_GEOJSON };
+  }
+};
+

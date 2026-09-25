@@ -13,11 +13,12 @@ from backend.app.api.v1.endpoints import (
     data_sources,
     analytics,
     risk,
+    gis,
 )
 
 api_router = APIRouter()
 
-# Register the 9 designated API groups + diagnostics
+# Register the 9 designated API groups + GIS and diagnostics
 api_router.include_router(health.router, tags=["Health & Diagnostics"])
 api_router.include_router(dashboard.router, tags=["Executive Dashboard"])
 api_router.include_router(hazards.router, tags=["Hazard Zones"])
@@ -29,3 +30,4 @@ api_router.include_router(alerts.router, tags=["Emergency Alerts & Warnings"])
 api_router.include_router(data_sources.router, tags=["Data Sources & Real-Time Ingestion"])
 api_router.include_router(analytics.router, tags=["Analytics & Visualizations"])
 api_router.include_router(risk.router, tags=["Hazard Risk Assessment"])
+api_router.include_router(gis.router, tags=["GIS Spatial Infrastructure & Layers"])

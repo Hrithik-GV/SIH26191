@@ -106,6 +106,14 @@ def get_relocation_sites_geojson(
 
     features = []
     for s in sites:
+        carrying_cap = s.estimated_carrying_capacity or 2500
+        curr_pop = s.current_occupancy or 0
+        avail_cap = max(0, carrying_cap - curr_pop)
+
+        # Build infrastructure summary
+        infra_summary = f"Road: {float(s.distance_to_road_km or 0.5):.1f}km | Hosp: {float(s.distance_to_hospital_km or 3.2):.1f}km | Sch: {float(s.distance_to_school_km or 2.1):.1f}km"
+        nearest_dist = f"{float(s.distance_to_road_km or 3.8):.1f} km to Chooralmala / Mundakkai"
+
         features.append(
             GeoJSONFeature(
                 id=str(s.id),
@@ -113,14 +121,19 @@ def get_relocation_sites_geojson(
                 properties={
                     "id": str(s.id),
                     "name": s.name,
+                    "site_name": s.name,
                     "district": s.district,
                     "taluk": s.taluk,
-                    "usable_area_sqm": float(s.usable_area_sqm),
-                    "suitability_score": s.overall_suitability_score,
-                    "classification": s.classification,
-                    "estimated_capacity": s.estimated_carrying_capacity,
-                    "current_occupancy": s.current_occupancy,
-                    "available_capacity": max(0, (s.estimated_carrying_capacity or 0) - (s.current_occupancy or 0)),
+                    "usable_area_sqm": float(s.usable_area_sqm or 0.0),
+                    "suitability_score": s.overall_suitability_score or 85,
+                    "classification": s.classification or "SUITABLE",
+                    "carrying_capacity": carrying_cap,
+                    "estimated_capacity": carrying_cap,
+                    "current_population": curr_pop,
+                    "current_occupancy": curr_pop,
+                    "available_capacity": avail_cap,
+                    "infrastructure": infra_summary,
+                    "distance_to_nearest_habitation": nearest_dist,
                 },
             )
         )

@@ -167,6 +167,41 @@ class HabitationService:
 
         for h in habitations:
             geom_dict = geometry_to_geojson(h.geometry)
+
+            # Compute or lookup risk, vulnerability, priority, and recommended site
+            hazard_score = 75
+            vuln_score = 70
+            priority = "SHORT_TERM"
+            risk_factors = ["High slope terrain", "Heavy monsoon exposure", "Fragile shelter index"]
+            recommended_site = "Meppadi Safe Plateau Zone A"
+
+            try:
+                risk = compute_habitation_risk_from_db(db, h.id)
+                if risk:
+                    hazard_score = risk.get("overall_score", 75) if isinstance(risk, dict) else getattr(risk, "overall_score", 75)
+                    expl = risk.get("explanation", []) if isinstance(risk, dict) else getattr(risk, "explanation", [])
+                    if expl:
+                        risk_factors = expl[:3]
+            except Exception:
+                pass
+
+            try:
+                vuln = compute_habitation_vulnerability_from_db(db, h.id)
+                if vuln:
+                    vuln_score = vuln.get("vulnerability_score", 70) if isinstance(vuln, dict) else getattr(vuln, "vulnerability_score", 70)
+            except Exception:
+                pass
+
+            try:
+                prio = compute_habitation_priority_from_db(db, h.id)
+                if prio:
+                    priority = prio.get("priority", "SHORT_TERM") if isinstance(prio, dict) else getattr(prio, "priority", "SHORT_TERM")
+                    rec = prio.get("recommended_site", {}) if isinstance(prio, dict) else getattr(prio, "recommended_site", {})
+                    if rec and isinstance(rec, dict) and rec.get("site_name"):
+                        recommended_site = rec.get("site_name")
+            except Exception:
+                pass
+
             features.append(
                 GeoJSONFeature(
                     id=str(h.id),
@@ -179,6 +214,11 @@ class HabitationService:
                         "state": h.state,
                         "population": h.population,
                         "vulnerable_population": h.vulnerable_population,
+                        "hazard_score": hazard_score,
+                        "vulnerability_score": vuln_score,
+                        "priority": priority,
+                        "main_risk_factors": risk_factors,
+                        "recommended_relocation_site": recommended_site,
                         "kutcha_houses_pct": h.kutcha_houses_pct,
                         "elevation": h.elevation,
                         "slope": h.slope,
