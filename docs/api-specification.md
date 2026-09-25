@@ -22,6 +22,7 @@ Base URLs:
 | `GET` | `/api/relocation-sites` | List candidate resettlement sites with available area & capacity |
 | `GET` | `/api/relocation-sites/{id}` | Detailed candidate relocation parcel profile & geometry |
 | `GET` | `/api/relocation-sites/{id}/assessment` | Explainable 0–100 suitability score, category sub-scores & factors |
+| `GET` | `/api/relocation-sites/{id}/capacity` | Multi-pillar carrying capacity assessment & limiting bottlenecks |
 | `GET` | `/api/relocation-sites/nearby/{habitation_id}` | Spatial query finding safe relocation sites near affected habitation |
 
 ---
@@ -452,5 +453,59 @@ Strictly excludes any sites intersecting active `VERY_HIGH` hazard zones using P
       }
     }
   ]
+}
+```
+
+---
+
+### 10. Relocation-Site Carrying Capacity Assessment
+**`GET /api/relocation-sites/{id}/capacity`**
+
+#### Engineering Model & Liebig's Law of the Minimum:
+Carrying capacity is NOT a simplistic "area × population density" calculation. The model implements a multi-pillar resource bottleneck evaluation where each civic or ecological factor can constrain the final sustainable capacity:
+- **Gross Land Capacity**: $35\,\text{m}^2/\text{person}$ sustainable density norm across $75\%$ net buildable area (adjusted for terrain slope efficiency).
+- **Water Capacity**: Potable water supply yield benchmarked at $70\,\text{LPCD}$ (Litres Per Capita per Day) under the Jal Jeevan Mission standard.
+- **Sanitation Capacity**: Decentralized septic and wastewater treatment cores ($20\,\text{persons}/\text{unit}$).
+- **Healthcare Capacity**: Primary health centre (PHC) and hospital surge capacity ($500\,\text{persons}/\text{bed}$) with travel distance attenuation.
+- **Electricity Grid Capacity**: Connected transmission headroom ($0.35\,\text{kW}/\text{person}$).
+- **Road Accessibility**: Logistics convoy throughput and all-weather arterial connectivity.
+- **Final Sustainable Capacity**: $\min(\text{Gross}, \text{Water}, \text{Infrastructure})$.
+- **Available Intake Buffer**: $\max(0, \text{Final Capacity} - \text{Current Population})$.
+
+#### Response Example (`200 OK`):
+```json
+{
+  "site_id": "22222222-2222-4222-8222-222222222222",
+  "site_name": "Meppadi Safe Plateau Zone A",
+  "gross_capacity": 2000,
+  "infrastructure_capacity": 1600,
+  "water_capacity": 1500,
+  "final_capacity": 1500,
+  "current_population": 700,
+  "available_capacity": 800,
+  "limiting_factors": [
+    "Potable water supply yield limits capacity to 1,500 persons (500 below gross land capacity) (Primary Limiting Bottleneck)",
+    "Healthcare and clinical surge capacity limits intake to 1,600 persons (400 below gross land capacity)"
+  ],
+  "factor_capacities": {
+    "usable_land": 2000,
+    "water_supply": 1500,
+    "sanitation": 1800,
+    "healthcare": 1600,
+    "electricity": 2000,
+    "road_access": 2000
+  },
+  "assumptions": {
+    "spatial_density_standard": "35 sqm usable land per person (SPHERE / National Building Code disaster resettlement norm)",
+    "usable_land_coefficient": "75% net buildable area after civic reservations (drainage, easements, green buffer)",
+    "water_consumption_norm": "70 Litres Per Capita per Day (LPCD) based on Jal Jeevan Mission rural piped water benchmark",
+    "sanitation_standard": "1 decentralized sanitation / bio-septic processing unit per 20 persons",
+    "healthcare_standard": "Primary healthcare capacity of 500 persons per primary health centre (PHC) bed unit within 5km",
+    "electricity_standard": "0.35 kW continuous connected load per person (1.75 kW per average household)",
+    "road_access_standard": "All-weather arterial highway connection with minimum 2-lane logistics convoy throughput",
+    "capacity_model": "Liebig's Law of the Minimum: Sustainable carrying capacity is strictly capped by the scarcest critical civil resource",
+    "framework_status": "PROTOTYPE_ASSUMPTIONS_CIVIC_RESIDENCE"
+  },
+  "calculated_at": "2026-09-25T18:10:00Z"
 }
 ```

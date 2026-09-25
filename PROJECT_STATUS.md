@@ -16,9 +16,38 @@
 | **Phase 3.5** | **GIS Processing Engine (GeoPandas, Shapely, Rasterio)** | **Completed** | 2026-09-25 |
 | **Phase 3.6** | **Population Vulnerability Assessment Engine & APIs** | **Completed** | 2026-09-25 |
 | **Phase 3.7** | **Relocation-Site Suitability Assessment Engine & APIs** | **Completed** | 2026-09-25 |
-| **Phase 4** | AI/ML Carrying Capacity & Urgency Prioritization Engine | Pending / Next | — |
+| **Phase 4.1** | **Relocation-Site Carrying-Capacity Assessment Engine & APIs** | **Completed** | 2026-09-25 |
+| **Phase 4.2** | AI/ML Relocation Urgency Prioritization & Recommendation Allocator | Pending / Next | — |
 | **Phase 5** | Interactive MapLibre GL Frontend & Analytics Visualization | Pending | — |
 | **Phase 6** | End-to-End Integration, Validation & Hackathon Hardening | Pending | — |
+
+---
+
+## ✅ Phase 4.1: Detailed Accomplishments (Relocation Site Carrying-Capacity Engine)
+
+### 1. Multi-Pillar Resource Bottleneck Model (Liebig's Law of the Minimum)
+- [x] Rejected simplistic "area × population density" multiplication in favor of a multi-pillar civic and environmental capacity model (`backend/app/core/capacity_config.py`):
+  - **Gross Land Capacity**: $35\,\text{m}^2/\text{person}$ sustainable density norm across $75\%$ net buildable area, penalized for steep terrain slopes (>8° to >25°).
+  - **Water Supply Capacity**: Benchmarked strictly to $70\,\text{LPCD}$ (Litres Per Capita per Day) under the Jal Jeevan Mission standard.
+  - **Sanitation Capacity**: Decentralized community sanitation and wastewater absorption ($20\,\text{persons}/\text{core}$).
+  - **Healthcare Capacity**: Primary health centre (PHC) and hospital surge capacity ($500\,\text{persons}/\text{bed}$) with travel distance attenuation.
+  - **Electricity Grid Capacity**: Continuous connected load standard ($0.35\,\text{kW}/\text{person}$).
+  - **Road Accessibility**: Logistics convoy throughput and all-weather arterial connectivity.
+- [x] Final carrying capacity strictly governed by the scarcest critical civil resource: $\text{final\_capacity} = \min(\text{gross}, \text{water}, \text{infrastructure})$.
+- [x] Available capacity dynamically computed: $\max(0, \text{final\_capacity} - \text{current\_population})$.
+
+### 2. Transparent Limiting Factor Explanation & Prototype Assumptions
+- [x] Every factor that constrains capacity below gross land area is dynamically identified and reported in `limiting_factors` with the primary bottleneck tagged.
+- [x] Clearly labeled engineering and civic planning assumptions returned in every assessment response.
+
+### 3. REST API Endpoint
+- [x] Implemented and registered route:
+  - `GET /api/relocation-sites/{id}/capacity`: Calculates transparent multi-pillar carrying capacity assessment for a candidate parcel, returning `gross_capacity`, `infrastructure_capacity`, `water_capacity`, `final_capacity`, `current_population`, `available_capacity`, `limiting_factors`, `factor_capacities`, and `assumptions`.
+
+### 4. Automated Unit Tests & Documentation
+- [x] Implemented dedicated test suite in `backend/tests/test_capacity_engine.py` (9 tests).
+- [x] Pytest suite: **67/67 tests passing** (GIS engine, database, health, risk engine, vulnerability engine, suitability engine, capacity engine).
+- [x] Documented complete API contracts in `docs/api-specification.md`.
 
 ---
 

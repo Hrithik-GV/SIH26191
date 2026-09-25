@@ -11,12 +11,14 @@ from backend.app.schemas.relocation import (
     SiteSuitabilityAssessmentResponse,
     NearbySitesSummaryResponse,
 )
+from backend.app.schemas.capacity import SiteCarryingCapacityResponse
 from backend.app.services.suitability_engine import (
     get_all_relocation_sites_from_db,
     get_relocation_site_by_id_from_db,
     compute_site_assessment_from_db,
     find_suitable_nearby_sites_for_habitation,
 )
+from backend.app.services.capacity_engine import compute_site_capacity_from_db
 
 router = APIRouter()
 
@@ -151,3 +153,37 @@ def get_site_assessment(
         )
 
     return SiteSuitabilityAssessmentResponse(**assessment)
+
+
+@router.get(
+    "/relocation-sites/{id}/capacity",
+    response_model=SiteCarryingCapacityResponse,
+    summary="Calculate Relocation-Site Carrying Capacity Assessment",
+    description=(
+        "Calculates transparent sustainable carrying capacity for a candidate relocation site. "
+        "Adheres to Liebig's Law of the Minimum (bottleneck principle) evaluating usable buildable land area, "
+        "safe resettlement density, potable water yield (70 LPCD), decentralized sanitation, healthcare surge, "
+        "electricity grid limits, road accessibility, and existing population. Returns gross capacity, "
+        "infrastructure capacity, water capacity, final capacity, available capacity, and dynamic limiting factors."
+    ),
+)
+def get_site_capacity(
+    id: uuid.UUID,
+    db: Session = Depends(get_db),
+):
+    """Calculate and return transparent multi-pillar carrying capacity assessment for a relocation site."""
+    try:
+        capacity_result = compute_site_capacity_from_db(db, id)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Error evaluating site carrying capacity: {str(e)}",
+        )
+
+    if "error" in capacity_result:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Relocation site with id '{id}' not found.",
+        )
+
+    return SiteCarryingCapacityResponse(**capacity_result)
