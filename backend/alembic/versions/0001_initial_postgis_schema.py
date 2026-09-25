@@ -32,7 +32,7 @@ def upgrade() -> None:
         sa.Column('state', sa.String(length=100), nullable=False),
         sa.Column('population', sa.Integer(), nullable=False, server_default='0'),
         sa.Column('vulnerable_population', sa.Integer(), nullable=False, server_default='0'),
-        sa.Column('geometry', geoalchemy2.types.Geometry(geometry_type='GEOMETRY', srid=4326, from_text='ST_GeomFromEWKT', name='geometry'), nullable=False),
+        sa.Column('geometry', geoalchemy2.types.Geometry(geometry_type='GEOMETRY', srid=4326, spatial_index=False), nullable=False),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
     )
@@ -52,7 +52,7 @@ def upgrade() -> None:
         sa.Column('severity', sa.String(length=20), nullable=False),
         sa.Column('source', sa.String(length=100), nullable=False),
         sa.Column('timestamp', sa.DateTime(timezone=True), nullable=False),
-        sa.Column('geometry', geoalchemy2.types.Geometry(geometry_type='GEOMETRY', srid=4326, from_text='ST_GeomFromEWKT', name='geometry'), nullable=False),
+        sa.Column('geometry', geoalchemy2.types.Geometry(geometry_type='GEOMETRY', srid=4326, spatial_index=False), nullable=False),
     )
     op.create_index('idx_hazard_zones_id', 'hazard_zones', ['id'])
     op.create_index('idx_hazard_zones_type', 'hazard_zones', ['hazard_type'])
@@ -71,7 +71,7 @@ def upgrade() -> None:
         sa.Column('rainfall_mm', sa.Float(), nullable=False),
         sa.Column('observation_time', sa.DateTime(timezone=True), nullable=False),
         sa.Column('source', sa.String(length=100), nullable=False),
-        sa.Column('geometry', geoalchemy2.types.Geometry(geometry_type='POINT', srid=4326, from_text='ST_GeomFromEWKT', name='geometry'), nullable=True),
+        sa.Column('geometry', geoalchemy2.types.Geometry(geometry_type='POINT', srid=4326, spatial_index=False), nullable=True),
     )
     op.create_index('idx_rainfall_id', 'rainfall_observations', ['id'])
     op.create_index('idx_rainfall_time', 'rainfall_observations', ['observation_time'])
@@ -86,7 +86,7 @@ def upgrade() -> None:
         sa.Column('water_level', sa.Float(), nullable=False),
         sa.Column('danger_level', sa.Float(), nullable=False),
         sa.Column('observation_time', sa.DateTime(timezone=True), nullable=False),
-        sa.Column('geometry', geoalchemy2.types.Geometry(geometry_type='POINT', srid=4326, from_text='ST_GeomFromEWKT', name='geometry'), nullable=False),
+        sa.Column('geometry', geoalchemy2.types.Geometry(geometry_type='POINT', srid=4326, spatial_index=False), nullable=False),
     )
     op.create_index('idx_river_id', 'river_observations', ['id'])
     op.create_index('idx_river_station', 'river_observations', ['station_name'])
@@ -102,7 +102,7 @@ def upgrade() -> None:
         sa.Column('severity', sa.String(length=20), nullable=False),
         sa.Column('event_time', sa.DateTime(timezone=True), nullable=False),
         sa.Column('source', sa.String(length=100), nullable=False),
-        sa.Column('geometry', geoalchemy2.types.Geometry(geometry_type='GEOMETRY', srid=4326, from_text='ST_GeomFromEWKT', name='geometry'), nullable=False),
+        sa.Column('geometry', geoalchemy2.types.Geometry(geometry_type='GEOMETRY', srid=4326, spatial_index=False), nullable=False),
     )
     op.create_index('idx_disaster_id', 'disaster_events', ['id'])
     op.create_index('idx_disaster_type', 'disaster_events', ['disaster_type'])
@@ -125,7 +125,7 @@ def upgrade() -> None:
         sa.Column('healthcare_score', sa.Float(), nullable=False),
         sa.Column('hazard_score', sa.Float(), nullable=False),
         sa.Column('suitability_score', sa.Float(), nullable=False),
-        sa.Column('geometry', geoalchemy2.types.Geometry(geometry_type='GEOMETRY', srid=4326, from_text='ST_GeomFromEWKT', name='geometry'), nullable=False),
+        sa.Column('geometry', geoalchemy2.types.Geometry(geometry_type='GEOMETRY', srid=4326, spatial_index=False), nullable=False),
     )
     op.create_index('idx_relocation_sites_id', 'relocation_sites', ['id'])
     op.create_index('idx_relocation_sites_name', 'relocation_sites', ['name'])

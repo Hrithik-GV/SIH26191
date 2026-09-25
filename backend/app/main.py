@@ -81,8 +81,10 @@ def create_application() -> FastAPI:
         summary="Root Health Endpoint",
     )
 
-    # 4. Include Versioned API Routes (/api/v1)
-    application.include_router(api_router, prefix=settings.API_V1_STR)
+    # 4. Include Versioned & Direct API Routes (/api and /api/v1)
+    application.include_router(api_router, prefix="/api")
+    if settings.API_V1_STR != "/api":
+        application.include_router(api_router, prefix=settings.API_V1_STR)
 
     return application
 
