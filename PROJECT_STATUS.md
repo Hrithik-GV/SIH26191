@@ -15,9 +15,49 @@
 | **Phase 3** | **Hazard Risk Scoring Engine (Prototype v1) & Risk APIs** | **Completed** | 2026-09-25 |
 | **Phase 3.5** | **GIS Processing Engine (GeoPandas, Shapely, Rasterio)** | **Completed** | 2026-09-25 |
 | **Phase 3.6** | **Population Vulnerability Assessment Engine & APIs** | **Completed** | 2026-09-25 |
+| **Phase 3.7** | **Relocation-Site Suitability Assessment Engine & APIs** | **Completed** | 2026-09-25 |
 | **Phase 4** | AI/ML Carrying Capacity & Urgency Prioritization Engine | Pending / Next | — |
 | **Phase 5** | Interactive MapLibre GL Frontend & Analytics Visualization | Pending | — |
 | **Phase 6** | End-to-End Integration, Validation & Hackathon Hardening | Pending | — |
+
+---
+
+## ✅ Phase 3.7: Detailed Accomplishments (Relocation Site Suitability Engine)
+
+### 1. Transparent 12-Factor Suitability Model
+- [x] Defined non-black-box multi-category civil and environmental scoring configuration in `backend/app/core/suitability_config.py`:
+  - **Hazard Safety (35%)**: Clearance from active flood zones (35%), landslide red zones (35%), construction slope angle (15%), flood-datum elevation (15%).
+  - **Infrastructure (25%)**: Potable water networks (30%), electricity transmission (25%), hospital proximity (25%), school proximity (20%).
+  - **Accessibility (20%)**: All-weather arterial highway connection (60%), multi-vehicle evacuation transit egress (40%).
+  - **Capacity (20%)**: Immediate intake capacity buffer (40%), usable land parcel area in sqm (35%), occupancy ratio (25%).
+
+### 2. Separate Category Scores & Prototype Classification
+- [x] Generates 4 separate 0–100 category sub-scores alongside overall composite suitability score:
+  - `hazard_safety_score`
+  - `accessibility_score`
+  - `infrastructure_score`
+  - `capacity_score`
+  - `overall_suitability_score`
+- [x] Prototype classification brackets:
+  - `80 – 100` = **HIGHLY SUITABLE**
+  - `60 – 79` = **SUITABLE**
+  - `40 – 59` = **CONDITIONALLY SUITABLE**
+  - `0 – 39` = **UNSUITABLE**
+
+### 3. Human-Readable Explainable Output
+- [x] Generates dynamic civil `strengths` and engineering `limitations` (e.g. *"Zero active flood or landslide red-zone overlap (>500m safety clearance buffer)"*, *"Ideal gentle terrain topography (4.5°) with minimal earthwork requirements"*, *"Delayed emergency healthcare access (12.5 km to nearest hospital facility)"*).
+
+### 4. REST API Endpoints with GeoJSON Geometries
+- [x] Registered routes in both `/api` and `/api/v1`:
+  - `GET /api/relocation-sites`: Lists candidate resettlement parcels with available area, capacity figures, and GeoJSON polygon geometry.
+  - `GET /api/relocation-sites/{id}`: Detailed candidate relocation parcel profile and boundary.
+  - `GET /api/relocation-sites/{id}/assessment`: Calculates transparent 0–100 suitability assessment with category sub-scores, dynamic strengths, limitations, and classification bracket.
+  - `GET /api/relocation-sites/nearby/{habitation_id}`: Spatial proximity query ranking nearest safe relocation sites for an affected habitation using PostGIS ellipsoidal geography calculation (`ST_Distance`) with strict exclusion of parcels overlapping active `VERY_HIGH` hazard zones.
+
+### 5. Automated Unit Tests & Documentation
+- [x] Implemented dedicated test suite in `backend/tests/test_suitability_engine.py` (10 tests).
+- [x] Pytest suite: **58/58 tests passing** (GIS engine, database, health, risk engine, vulnerability engine, suitability engine).
+- [x] Documented complete API contracts and schemas in `docs/api-specification.md`.
 
 ---
 

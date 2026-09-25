@@ -19,6 +19,10 @@ Base URLs:
 | `GET` | `/api/risk/summary` | Multi-habitation risk summary, ranking and severity breakdown |
 | `GET` | `/api/vulnerability/{habitation_id}` | Transparent 0–100 population vulnerability score & demographics |
 | `GET` | `/api/vulnerability/summary` | Multi-habitation population vulnerability summary & rankings |
+| `GET` | `/api/relocation-sites` | List candidate resettlement sites with available area & capacity |
+| `GET` | `/api/relocation-sites/{id}` | Detailed candidate relocation parcel profile & geometry |
+| `GET` | `/api/relocation-sites/{id}/assessment` | Explainable 0–100 suitability score, category sub-scores & factors |
+| `GET` | `/api/relocation-sites/nearby/{habitation_id}` | Spatial query finding safe relocation sites near affected habitation |
 
 ---
 
@@ -243,5 +247,210 @@ Where field census data is absent, clearly marked synthetic demonstration proxie
   },
   "critical_vulnerability_count": 1,
   "habitations": [ ... ]
+}
+```
+
+---
+
+## 🏗️ Relocation-Site Suitability Assessment Engine Specification
+
+### Prototype Factors Evaluated (0–100 Scale)
+The engine calculates transparent 0–100 suitability scores across 4 key evaluation categories comprising 12 granular factors:
+
+1. **Hazard Safety Category (Weight: 35%)**:
+   - `flood_risk`: Proximity and clearance from active flood inundation zones (sub-weight: 35%).
+   - `landslide_risk`: Clearance from high-risk mass movement and debris flow zones (sub-weight: 35%).
+   - `slope`: Topographical gradient; gentle slopes (2°–8°) ideal, steep terrain (>25°) penalized (sub-weight: 15%).
+   - `elevation`: Elevation above flood datum ensuring adequate gravity stormwater drainage (sub-weight: 15%).
+
+2. **Infrastructure Category (Weight: 25%)**:
+   - `water_availability`: Proximity to potable water supply pipelines, reservoirs, or viable aquifers (sub-weight: 30%).
+   - `electricity_availability`: Grid proximity, high-voltage transmission access, transformer capacity (sub-weight: 25%).
+   - `hospital_proximity`: Travel distance and emergency transit time to primary health centers or hospitals (sub-weight: 25%).
+   - `school_proximity`: Safe pedestrian/bus distance to primary and secondary educational institutions (sub-weight: 20%).
+
+3. **Accessibility Category (Weight: 20%)**:
+   - `road_accessibility`: Proximity to all-weather paved highways, heavy vehicle load capacity (sub-weight: 60%).
+   - `transit_connectivity`: Public transport arterial access, evacuation corridor redundancy (sub-weight: 40%).
+
+4. **Capacity Category (Weight: 20%)**:
+   - `available_capacity_buffer`: Unoccupied capacity margin for immediate resettlement intake (sub-weight: 40%).
+   - `available_land`: Total usable continuous land parcel area in square meters (sub-weight: 35%).
+   - `occupancy_ratio`: Current occupancy vs. maximum ecological and civil carrying capacity (sub-weight: 25%).
+
+### Prototype Classification Thresholds
+- **`80 – 100`**: `HIGHLY SUITABLE` (Immediate priority parcel; optimal safety and infrastructure clearances)
+- **`60 – 79`**: `SUITABLE` (Viable parcel; minor civil infrastructure development needed)
+- **`40 – 59`**: `CONDITIONALLY SUITABLE` (Conditional parcel; requires active engineering mitigation or slope terracing)
+- **`0 – 39`**: `UNSUITABLE` (Constrained parcel; severe residual hazard risk or critical civic deficiency)
+
+---
+
+### 6. List Candidate Relocation Sites
+**`GET /api/relocation-sites`**
+
+#### Query Parameters:
+- `min_suitability` *(float, optional, default: 0.0)*: Minimum suitability filter threshold.
+- `min_capacity` *(integer, optional, default: 0)*: Minimum available capacity filter.
+
+#### Response Example (`200 OK`):
+```json
+[
+  {
+    "id": "22222222-2222-4222-8222-222222222222",
+    "name": "Meppadi Green Plateau",
+    "available_area": 125000.0,
+    "current_population": 40,
+    "estimated_capacity": 2200,
+    "available_capacity": 2160,
+    "water_score": 9.0,
+    "road_access_score": 8.5,
+    "healthcare_score": 8.0,
+    "hazard_score": 1.2,
+    "suitability_score": 88.0,
+    "geometry": {
+      "type": "Polygon",
+      "coordinates": [[[76.12, 11.55], [76.14, 11.55], [76.14, 11.57], [76.12, 11.57], [76.12, 11.55]]]
+    }
+  }
+]
+```
+
+---
+
+### 7. Get Candidate Relocation Site Profile
+**`GET /api/relocation-sites/{id}`**
+
+#### Response Example (`200 OK`):
+```json
+{
+  "id": "22222222-2222-4222-8222-222222222222",
+  "name": "Meppadi Green Plateau",
+  "available_area": 125000.0,
+  "current_population": 40,
+  "estimated_capacity": 2200,
+  "available_capacity": 2160,
+  "water_score": 9.0,
+  "road_access_score": 8.5,
+  "healthcare_score": 8.0,
+  "hazard_score": 1.2,
+  "suitability_score": 88.0,
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": [[[76.12, 11.55], [76.14, 11.55], [76.14, 11.57], [76.12, 11.57], [76.12, 11.55]]]
+  }
+}
+```
+
+---
+
+### 8. Explainable Relocation Site Assessment
+**`GET /api/relocation-sites/{id}/assessment`**
+
+#### Response Example (`200 OK`):
+```json
+{
+  "site_id": "22222222-2222-4222-8222-222222222222",
+  "site_name": "Meppadi Green Plateau",
+  "suitability_score": 86,
+  "overall_suitability_score": 86,
+  "hazard_safety_score": 92,
+  "accessibility_score": 85,
+  "infrastructure_score": 88,
+  "capacity_score": 84,
+  "classification": "HIGHLY SUITABLE",
+  "category_scores": {
+    "hazard_safety_score": 92,
+    "accessibility_score": 85,
+    "infrastructure_score": 88,
+    "capacity_score": 84
+  },
+  "factors": {
+    "flood_risk": 95,
+    "landslide_risk": 90,
+    "slope": 95,
+    "elevation": 90,
+    "water_availability": 90,
+    "electricity_availability": 88,
+    "hospital_proximity": 86,
+    "school_proximity": 85,
+    "road_accessibility": 85,
+    "available_land": 85,
+    "capacity_buffer": 98,
+    "occupancy_ratio": 98
+  },
+  "strengths": [
+    "Zero active flood or landslide red-zone overlap (>500m safety clearance buffer)",
+    "Ideal gentle terrain topography (4.5°) with minimal earthwork requirements",
+    "High all-weather arterial highway connection and multi-vehicle transport egress",
+    "Reliable potable water supply and primary healthcare within 2.5 km",
+    "High available carrying capacity (safely accommodates 2,160 displaced persons)"
+  ],
+  "limitations": [
+    "Standard civil infrastructure maintenance and periodic storm drainage inspection required"
+  ],
+  "available_capacity": 2160,
+  "estimated_capacity": 2200,
+  "available_area_sqm": 125000.0,
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": [[[76.12, 11.55], [76.14, 11.55], [76.14, 11.57], [76.12, 11.57], [76.12, 11.55]]]
+  },
+  "calculated_at": "2026-09-25T17:30:00Z"
+}
+```
+
+---
+
+### 9. Spatial Proximity Search for Relocation Sites Near Affected Habitation
+**`GET /api/relocation-sites/nearby/{habitation_id}`**
+
+#### Query Parameters:
+- `max_distance_km` *(float, optional, default: 35.0)*: Maximum search radius in kilometers.
+- `min_capacity` *(integer, optional, default: 50)*: Minimum remaining capacity buffer.
+- `limit` *(integer, optional, default: 5)*: Maximum candidate parcels to rank.
+
+#### Safety Filter:
+Strictly excludes any sites intersecting active `VERY_HIGH` hazard zones using PostGIS spatial intersection.
+
+#### Response Example (`200 OK`):
+```json
+{
+  "habitation_id": "11111111-1111-4111-8111-111111111111",
+  "habitation_name": "Chooralmala Settlement",
+  "vulnerable_population": 450,
+  "total_sites_found": 2,
+  "recommended_sites": [
+    {
+      "site_id": "22222222-2222-4222-8222-222222222222",
+      "site_name": "Meppadi Safe Plateau",
+      "distance_km": 4.2,
+      "distance_meters": 4200.5,
+      "available_capacity": 1500,
+      "suitability_score": 86,
+      "classification": "HIGHLY SUITABLE",
+      "hazard_safe": true,
+      "proximity_rank": 1,
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[76.12, 11.55], [76.14, 11.55], [76.14, 11.57], [76.12, 11.57], [76.12, 11.55]]]
+      }
+    },
+    {
+      "site_id": "33333333-3333-4333-8333-333333333333",
+      "site_name": "Kalpetta South Ridge",
+      "distance_km": 8.9,
+      "distance_meters": 8900.0,
+      "available_capacity": 900,
+      "suitability_score": 78,
+      "classification": "SUITABLE",
+      "hazard_safe": true,
+      "proximity_rank": 2,
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[76.08, 11.60], [76.10, 11.60], [76.10, 11.62], [76.08, 11.62], [76.08, 11.60]]]
+      }
+    }
+  ]
 }
 ```
