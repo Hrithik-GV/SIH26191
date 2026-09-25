@@ -18,8 +18,46 @@
 | **Phase 3.7** | **Relocation-Site Suitability Assessment Engine & APIs** | **Completed** | 2026-09-25 |
 | **Phase 4.1** | **Relocation-Site Carrying-Capacity Assessment Engine & APIs** | **Completed** | 2026-09-25 |
 | **Phase 4.2** | **Relocation Prioritization Engine & Decision-Support APIs** | **Completed** | 2026-09-25 |
+| **Phase 4.3** | **Real-Time / Near-Real-Time Data Ingestion Layer & Status APIs** | **Completed** | 2026-09-26 |
 | **Phase 5** | Interactive MapLibre GL Frontend & Analytics Visualization | Pending / Next | — |
 | **Phase 6** | End-to-End Integration, Validation & Hackathon Hardening | Pending | — |
+
+---
+
+## ✅ Phase 4.3: Detailed Accomplishments (Real-Time Ingestion Architecture)
+
+### 1. Modular Multi-Provider Architecture
+- [x] Designed and implemented modular ingestion layer in `backend/app/ingestion/`:
+  - `backend/app/ingestion/config.py`: Environment variable configuration (`MOSDAC_*`, `CWC_WIMS_*`, `NDMA_SACHET_*`, `IMD_*`, polling interval, retry backoff, timeouts).
+  - `backend/app/ingestion/status_registry.py`: Singleton `DataSourceStatusRegistry` tracking real-time status, freshness, latency, errors, and rolling execution logs.
+  - `backend/app/ingestion/providers/base.py`: Abstract `BaseProvider` with retry backoff, timeout handling, and HTTP conditional caching (`If-None-Match` / `If-Modified-Since` -> 304 Not Modified).
+  - `backend/app/ingestion/providers/mosdac.py`: `MOSDACProvider` + `MOSDACDemoProvider` for INSAT-3D/3DR Hydro-Estimator satellite precipitation telemetry.
+  - `backend/app/ingestion/providers/cwc_wims.py`: `CWCWIMSProvider` + `CWCWIMSDemoProvider` for Central Water Commission hydrometric river stage gauges.
+  - `backend/app/ingestion/providers/ndma_sachet.py`: `NDMASachetProvider` + `NDMASachetDemoProvider` for Common Alerting Protocol (CAP v1.2) emergency warnings.
+  - `backend/app/ingestion/providers/imd.py`: `IMDWeatherProvider` + `IMDDemoProvider` for IMD Automated Weather Station telemetry.
+
+### 2. Scientific Integrity & Data Governance Rules
+- [x] Strict Anti-Fabrication Rule: Unauthenticated providers do not pretend to be live; automatically route to explicitly labeled demonstration proxies (`data_mode: "DEMONSTRATION_PROXY"`, `is_mock_data: true`).
+- [x] HTTP 304 Not Modified Caching: Payload transfers skipped when ETag / Last-Modified match upstream.
+- [x] Strict Validation & Normalization Layer:
+  - `validators/`: `RainfallValidator`, `RiverValidator`, `AlertValidator` enforce coordinates, physical limits, and CAP schemas.
+  - `normalizers/`: `RainfallNormalizer`, `RiverNormalizer`, `AlertNormalizer` map payloads into PostGIS models (`RainfallObservation`, `RiverObservation`, `DisasterEvent`) with WKT geometry and timezone-aware UTC timestamps.
+- [x] Idempotent Deduplication: Database checks prevent duplicate insertions into PostGIS.
+
+### 3. Scheduling & Background Polling
+- [x] Integrated `apscheduler==3.11.3` in `backend/app/ingestion/scheduler/pipeline.py` with `BackgroundScheduler`.
+- [x] Connected to FastAPI application lifespan for seamless startup and graceful shutdown.
+
+### 4. REST API Endpoints
+- [x] Implemented in `backend/app/api/v1/endpoints/data_sources.py`:
+  - `GET /api/data-sources/status`: Real-time status, latency, freshness, and recent logs for all 4 feeds.
+  - `GET /api/data-sources/{source_id}`: Detailed telemetry metrics for an individual feed.
+  - `POST /api/data-sources/trigger`: Manual on-demand ingestion trigger for testing and administrative sync.
+
+### 5. Automated Unit Tests & Documentation
+- [x] Implemented 17 automated tests in `backend/tests/test_ingestion_engine.py`.
+- [x] Total test suite: **96/96 tests passing with 100% success rate**.
+- [x] Documented complete API contracts in `docs/api-specification.md`.
 
 ---
 

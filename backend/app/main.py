@@ -17,6 +17,10 @@ from backend.app.api.v1.api import api_router
 from backend.app.api.v1.endpoints.health import get_health_status
 
 
+from backend.app.ingestion.config import ingestion_settings
+from backend.app.ingestion.scheduler import ingestion_scheduler
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifecycle manager."""
@@ -25,7 +29,17 @@ async def lifespan(app: FastAPI):
         f"[env: {settings.ENVIRONMENT}, debug: {settings.DEBUG}]"
     )
     logger.info(f"Allowed CORS Origins: {settings.CORS_ORIGINS}")
+
+    if ingestion_settings.auto_start_scheduler:
+        logger.info("Initializing APScheduler real-time ingestion background worker...")
+        ingestion_scheduler.start()
+
     yield
+
+    if ingestion_scheduler.is_running:
+        logger.info("Shutting down APScheduler background worker...")
+        ingestion_scheduler.stop()
+
     logger.info(f"Shutting down {settings.PROJECT_NAME}...")
 
 

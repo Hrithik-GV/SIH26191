@@ -13,6 +13,7 @@ alembic==1.14.1
 # HTTP & Utilities
 python-dotenv==1.0.1
 httpx==0.28.1
+apscheduler==3.11.3
 
 # Testing & Quality
 pytest==8.3.5

@@ -684,3 +684,129 @@ The platform does **NOT** claim that AI makes executive relocation decisions. Al
   "calculated_at": "2026-09-25T18:20:00Z"
 }
 ```
+
+---
+
+## 📡 Real-Time & Near-Real-Time Data Ingestion Layer Specification
+
+### 1. Ingestion Pipeline & Architecture
+The data ingestion engine handles real-time and near-real-time multi-hazard telemetry feeds across India's premier scientific disaster monitoring agencies:
+1. **MOSDAC / ISRO**: Satellite precipitation products (INSAT-3D / INSAT-3DR Hydro-Estimator Method).
+2. **CWC / WIMS / NWIC**: Central Water Commission hydrometric river stage gauges.
+3. **NDMA SACHET**: Common Alerting Protocol (CAP v1.2) emergency warnings.
+4. **IMD Weather**: India Meteorological Department Automated Weather Station (AWS) telemetry.
+
+### 2. Scientific Integrity & Data Governance Rules
+- **Anti-Fabrication Policy**: Sources requiring official credentials do NOT pretend to be live if unauthenticated.
+- **Explicit Labeling**: Demonstration proxy data is clearly flagged with `data_mode: "DEMONSTRATION_PROXY"` and `is_mock_data: true`.
+- **Deduplication**: Observations are validated and deduplicated against PostGIS tables (`rainfall_observations`, `river_observations`, `disaster_events`) to eliminate redundant storage.
+- **HTTP 304 Caching**: Providers utilize `ETag` and `Last-Modified` conditional HTTP headers to avoid unnecessary bandwidth and transfer costs.
+
+---
+
+### 14. Data Sources Operational Status & Freshness
+**`GET /api/data-sources/status`**
+
+Returns real-time operational status, data freshness, latency, and HTTP caching state for all 4 primary disaster feeds.
+
+#### Response Example (`200 OK`):
+```json
+{
+  "total_sources": 4,
+  "live_sources": 0,
+  "demo_sources": 4,
+  "scheduler_running": false,
+  "sources": [
+    {
+      "source_id": "mosdac_isro",
+      "source": "MOSDAC / ISRO Satellite Precipitation Telemetry",
+      "category": "RAINFALL",
+      "status": "DEMO_MODE",
+      "data_mode": "DEMONSTRATION_PROXY",
+      "is_mock_data": true,
+      "last_update": "2026-09-25T18:30:00Z",
+      "data_freshness": "Just now",
+      "records_ingested_last_run": 2,
+      "total_records_ingested": 10,
+      "latency_ms": 1.25,
+      "last_etag": "\"mosdac-demo-1758825000\"",
+      "last_modified": "Fri, 25 Sep 2026 18:30:00 GMT",
+      "last_error": null
+    },
+    {
+      "source_id": "cwc_wims",
+      "source": "Central Water Commission (CWC / WIMS) River Hydrometry",
+      "category": "RIVER_LEVEL",
+      "status": "DEMO_MODE",
+      "data_mode": "DEMONSTRATION_PROXY",
+      "is_mock_data": true,
+      "last_update": "2026-09-25T18:30:00Z",
+      "data_freshness": "Just now",
+      "records_ingested_last_run": 3,
+      "total_records_ingested": 15,
+      "latency_ms": 0.95,
+      "last_etag": "\"cwc-wims-demo-1758825000\"",
+      "last_modified": "Fri, 25 Sep 2026 18:30:00 GMT",
+      "last_error": null
+    },
+    {
+      "source_id": "ndma_sachet",
+      "source": "NDMA SACHET Common Alerting Protocol (CAP) EOC Feed",
+      "category": "DISASTER_ALERTS",
+      "status": "DEMO_MODE",
+      "data_mode": "DEMONSTRATION_PROXY",
+      "is_mock_data": true,
+      "last_update": "2026-09-25T18:30:00Z",
+      "data_freshness": "Just now",
+      "records_ingested_last_run": 1,
+      "total_records_ingested": 5,
+      "latency_ms": 0.82,
+      "last_etag": "\"sachet-cap-demo-1758825000\"",
+      "last_modified": "Fri, 25 Sep 2026 18:30:00 GMT",
+      "last_error": null
+    },
+    {
+      "source_id": "imd_weather",
+      "source": "India Meteorological Department (IMD) AWS Telemetry",
+      "category": "METEOROLOGY",
+      "status": "DEMO_MODE",
+      "data_mode": "DEMONSTRATION_PROXY",
+      "is_mock_data": true,
+      "last_update": "2026-09-25T18:30:00Z",
+      "data_freshness": "Just now",
+      "records_ingested_last_run": 2,
+      "total_records_ingested": 10,
+      "latency_ms": 1.10,
+      "last_etag": "\"imd-aws-demo-1758825000\"",
+      "last_modified": "Fri, 25 Sep 2026 18:30:00 GMT",
+      "last_error": null
+    }
+  ],
+  "recent_logs": [
+    {
+      "timestamp": "2026-09-25T18:30:00Z",
+      "source_id": "mosdac_isro",
+      "status": "SUCCESS",
+      "records_count": 2,
+      "duration_ms": 1.25,
+      "message": "Fetched 2 records, 2 inserted, 0 duplicates skipped",
+      "error": null
+    }
+  ]
+}
+```
+
+---
+
+### 15. Single Data Source Status
+**`GET /api/data-sources/{source_id}`**
+
+Returns detailed telemetry health, freshness, and latency for a single data source (`mosdac_isro`, `cwc_wims`, `ndma_sachet`, `imd_weather`).
+
+---
+
+### 16. On-Demand Ingestion Trigger
+**`POST /api/data-sources/trigger`**
+
+Manually executes an immediate ingestion run, updating PostGIS and status registry.
+- Optional query parameter: `?source_id=mosdac_isro` to trigger a specific feed.
