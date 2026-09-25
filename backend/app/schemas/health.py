@@ -10,10 +10,10 @@ class DatabaseStatus(BaseModel):
 
 
 class HealthResponse(BaseModel):
-    status: str = Field(..., example="healthy")
-    app_name: str = Field(..., example="SIH 2026 - Disaster Risk & Relocation Assessment")
-    version: str = Field(..., example="1.0.0")
-    environment: str = Field(..., example="development")
+    status: str = Field(..., examples=["healthy"])
+    app_name: str = Field(..., examples=["SIH 2026 - Disaster Risk & Relocation Assessment"])
+    version: str = Field(..., examples=["1.0.0"])
+    environment: str = Field(..., examples=["development"])
     timestamp: str = Field(..., description="ISO 8601 UTC timestamp")
     database: DatabaseStatus
     services: Dict[str, str] = Field(
