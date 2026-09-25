@@ -1,0 +1,19 @@
+# Core FastAPI Backend Dependencies
+fastapi==0.115.11
+uvicorn[standard]==0.34.0
+pydantic==2.10.6
+pydantic-settings==2.8.1
+
+# Database & ORM
+SQLAlchemy==2.0.38
+psycopg2-binary==2.9.10
+GeoAlchemy2==0.17.1
+alembic==1.14.1
+
+# HTTP & Utilities
+python-dotenv==1.0.1
+httpx==0.28.1
+
+# Testing & Quality
+pytest==8.3.5
+pytest-asyncio==0.25.3
