@@ -81,6 +81,3 @@ Desktop.ini
 *.log
 docker/db_data/
 
-# Local Project Status & Progress Tracking
-PROJECT_STATUS.md
-
