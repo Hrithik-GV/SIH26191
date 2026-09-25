@@ -14,9 +14,44 @@
 | **Phase 2** | **PostgreSQL + PostGIS Spatial Schema & Data Modeling** | **Completed** | 2026-09-25 |
 | **Phase 3** | **Hazard Risk Scoring Engine (Prototype v1) & Risk APIs** | **Completed** | 2026-09-25 |
 | **Phase 3.5** | **GIS Processing Engine (GeoPandas, Shapely, Rasterio)** | **Completed** | 2026-09-25 |
+| **Phase 3.6** | **Population Vulnerability Assessment Engine & APIs** | **Completed** | 2026-09-25 |
 | **Phase 4** | AI/ML Carrying Capacity & Urgency Prioritization Engine | Pending / Next | — |
 | **Phase 5** | Interactive MapLibre GL Frontend & Analytics Visualization | Pending | — |
 | **Phase 6** | End-to-End Integration, Validation & Hackathon Hardening | Pending | — |
+
+---
+
+## ✅ Phase 3.6: Detailed Accomplishments (Population Vulnerability Engine)
+
+### 1. Transparent 9-Factor Vulnerability Model
+- [x] Defined non-black-box socio-demographic scoring configuration in `backend/app/core/vulnerability_config.py`:
+  - **Vulnerable Ratio (18%)**: Proportion of vulnerable population to total.
+  - **Housing Vulnerability (15%)**: Kutcha / fragile non-engineered dwellings prevalence.
+  - **Evacuation Accessibility (15%)**: Single-bridge bottleneck, narrow tracks, isolation.
+  - **Elderly Population (12%)**: Senior citizens (age 60+) proportion.
+  - **Children (10%)**: Dependent infants and children (age 0-14).
+  - **Persons with Disabilities (10%)**: Mobility-impaired / chronic illness residents.
+  - **Population Density (8%)**: Settlement concentration (people / km²).
+  - **Infrastructure Fragility (7%)**: Fragile utilities and delayed medical aid access.
+  - **Total Population Scale (5%)**: Total human lives exposed.
+- [x] Classification brackets: `0–30` = LOW, `31–60` = MODERATE, `61–80` = HIGH, `81–100` = CRITICAL.
+
+### 2. Demonstration Data Provenance Integrity
+- [x] Clearly marked synthetic demonstration proxies (`DEMO_SYNTHESIS_CENSUS_PROXY`) modeled on Wayanad plantation hamlets and riverfront settlements:
+  - Each demographic record contains explicit flags: `is_demonstration_data: true`, `data_source: "DEMO_SYNTHESIS_CENSUS_PROXY (...)"`.
+  - Zero invented real-world records.
+
+### 3. REST API Endpoints with GeoJSON Geometries
+- [x] Registered routes in both `/api` and `/api/v1`:
+  - `GET /api/vulnerability/{habitation_id}`: Transparent score, 9-factor breakdown, dynamic human-readable explanations, demographic profile, and GeoJSON geometry.
+  - `GET /api/vulnerability/summary`: Multi-habitation aggregate summary, average score, severity breakdown, and prioritized rankings with GeoJSON geometries.
+
+### 4. Automated Unit Tests & Documentation
+- [x] Implemented comprehensive test suite in `backend/tests/test_vulnerability_engine.py`:
+  - Tested classification brackets, weight summation to 1.0, 9 factor evaluation functions, composite calculation, low-vulnerability baselines, and synthetic proxy provenance.
+  - Tested FastAPI `/api/vulnerability/summary` and `/api/vulnerability/{id}` endpoints.
+- [x] Full backend test suite: **48/48 tests passing**.
+- [x] Documented endpoints and models in `docs/api-specification.md`.
 
 ---
 

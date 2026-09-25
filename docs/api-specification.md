@@ -17,6 +17,8 @@ Base URLs:
 | `GET` | `/api/hazards/{id}` | Retrieve specific hazard zone by UUID |
 | `GET` | `/api/habitations/{id}/risk` | Transparent 0–100 hazard risk score and factor breakdown |
 | `GET` | `/api/risk/summary` | Multi-habitation risk summary, ranking and severity breakdown |
+| `GET` | `/api/vulnerability/{habitation_id}` | Transparent 0–100 population vulnerability score & demographics |
+| `GET` | `/api/vulnerability/summary` | Multi-habitation population vulnerability summary & rankings |
 
 ---
 
@@ -144,7 +146,6 @@ Base URLs:
     "geometry": {
       "type": "Polygon",
       "coordinates": [
-        [
           [76.125, 11.540],
           [76.148, 11.540],
           [76.148, 11.565],
@@ -155,4 +156,92 @@ Base URLs:
     }
   }
 ]
+```
+
+---
+
+## 👥 Population Vulnerability Assessment Engine Specification
+
+### 9 Factors Evaluated (0–100 Scale)
+1. **Vulnerable Population Ratio (`vulnerable_ratio`)**: Dependent, marginalized, high-need demographic share (weight: 18%).
+2. **Housing Vulnerability (`housing`)**: Prevalence of kutcha, mud-thatch, non-engineered dwellings (weight: 15%).
+3. **Evacuation Accessibility (`evacuation_accessibility`)**: Single-bridge bottleneck, narrow tracks, egress isolation (weight: 15%).
+4. **Elderly Population (`elderly`)**: Senior citizens aged 60+ (weight: 12%).
+5. **Children Population (`children`)**: Infants and children under 14 (weight: 10%).
+6. **Persons with Disabilities (`disabilities`)**: Mobility-impaired / chronic illness residents (weight: 10%).
+7. **Settlement Density (`population_density`)**: Concentration in people/km² (weight: 8%).
+8. **Infrastructure Fragility (`infrastructure`)**: Fragility of power, water lines, delayed emergency medical aid (weight: 7%).
+9. **Total Population Scale (`total_population`)**: Total human exposure volume (weight: 5%).
+
+### Demonstration Data Provenance
+Where field census data is absent, clearly marked synthetic demonstration proxies (`DEMO_SYNTHESIS_CENSUS_PROXY`) modeled on Wayanad tea-estate and riverfront settlement patterns are utilized.
+
+### 4. Habitation Vulnerability Assessment
+**`GET /api/vulnerability/{habitation_id}`**
+
+#### Response Example (`200 OK`):
+```json
+{
+  "habitation_id": "22222222-2222-4222-8222-222222222222",
+  "habitation_name": "Chooralmala Village",
+  "district": "Wayanad",
+  "state": "Kerala",
+  "vulnerability_score": 78,
+  "severity": "HIGH",
+  "factors": {
+    "vulnerable_ratio": 78,
+    "housing": 68,
+    "evacuation_accessibility": 80,
+    "elderly": 68,
+    "children": 71,
+    "disabilities": 77,
+    "population_density": 85,
+    "infrastructure": 65,
+    "total_population": 70
+  },
+  "explanation": [
+    "High vulnerable population proportion (52.8%, 1820 individuals)",
+    "Elevated concentration of persons with disabilities (118 individuals with mobility constraints)",
+    "Significant prevalence of non-engineered housing (68.0%)",
+    "Critical evacuation constraint (single bridge egress / terrain bottleneck)"
+  ],
+  "demographics": {
+    "total_population": 3450,
+    "vulnerable_population": 1820,
+    "elderly_population": 480,
+    "children_population": 690,
+    "disabled_population": 118,
+    "population_density_per_sqkm": 2875.0,
+    "kutcha_housing_pct": 68.0,
+    "infrastructure_fragility_pct": 65.0,
+    "is_demonstration_data": true,
+    "data_source": "DEMO_SYNTHESIS_CENSUS_PROXY (Wayanad Riverfront Township)"
+  },
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": [[[76.145, 11.530], [76.160, 11.530], [76.160, 11.542], [76.145, 11.542], [76.145, 11.530]]]
+  },
+  "calculated_at": "2026-09-25T17:15:00Z"
+}
+```
+
+---
+
+### 5. Multi-Habitation Vulnerability Summary
+**`GET /api/vulnerability/summary`**
+
+#### Response Example (`200 OK`):
+```json
+{
+  "total_habitations": 4,
+  "average_vulnerability_score": 74.2,
+  "severity_breakdown": {
+    "CRITICAL": 1,
+    "HIGH": 2,
+    "MODERATE": 1,
+    "LOW": 0
+  },
+  "critical_vulnerability_count": 1,
+  "habitations": [ ... ]
+}
 ```
