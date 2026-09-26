@@ -1,57 +1,59 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { loginOfficer, logoutOfficer, fetchCurrentProfile } from '../services/api';
 
 const AuthContext = createContext();
 
 export const DEFAULT_USER = {
+  id: "usr-collector-02",
+  username: "collector",
   name: "Dr. A. K. Nambiar, IAS",
   designation: "District Collector & Chairman, DDMA Wayanad",
-  role: "DISTRICT_COLLECTOR",
-  clearance: "LEVEL_1_COMMAND",
+  role: "AUTHORITY_VIEWER",
+  clearance: "COMMAND_AUTHORITY",
   agency: "Kerala State Disaster Management Authority (KSDMA) / NDMA",
-  station: "District Emergency Operations Centre (DEOC), Kalpetta",
+  station: "District Collectorate, Kalpetta",
   avatar: "AN",
 };
 
 export const PRESET_USERS = [
   {
-    id: "collector",
-    name: "Dr. A. K. Nambiar, IAS",
-    designation: "District Collector & Chairman, DDMA",
-    role: "DISTRICT_COLLECTOR",
-    clearance: "LEVEL_1_COMMAND",
+    id: "admin",
+    username: "admin",
+    name: "Shri K. Harikumar",
+    designation: "Executive Disaster Operations Administrator",
+    role: "ADMIN",
+    clearance: "LEVEL_1_ADMIN",
     agency: "District Emergency Operations Centre, Wayanad",
     station: "DEOC Kalpetta",
-    badge: "Executive Chairman",
+    badge: "Admin (Full Operations & Edits)",
+    passwordHint: "GovAdmin@2026",
+    description: "Can add/edit settlements, candidate relocation sites, view audit trail, and export reports.",
   },
   {
-    id: "relief_comm",
+    id: "collector",
+    username: "collector",
+    name: "Dr. A. K. Nambiar, IAS",
+    designation: "District Collector & Chairman, DDMA Wayanad",
+    role: "AUTHORITY_VIEWER",
+    clearance: "COMMAND_AUTHORITY",
+    agency: "Kerala State Disaster Management Authority (KSDMA) / NDMA",
+    station: "District Collectorate, Kalpetta",
+    badge: "Authority Viewer (Decision Support)",
+    passwordHint: "GovAdmin@2026",
+    description: "Consumes decision-support telemetry, hazard layers, risk explanations, and exports reports.",
+  },
+  {
+    id: "relief_commissioner",
+    username: "relief_commissioner",
     name: "Smt. Meera Varma, IAS",
     designation: "Principal Secretary & State Relief Commissioner",
-    role: "RELIEF_COMMISSIONER",
-    clearance: "LEVEL_1_COMMAND",
-    agency: "Kerala State Disaster Management Authority (KSDMA)",
+    role: "AUTHORITY_VIEWER",
+    clearance: "STATE_COMMAND",
+    agency: "Revenue & Disaster Management Dept, Govt of Kerala",
     station: "State EOC Thiruvananthapuram",
-    badge: "State Command",
-  },
-  {
-    id: "gis_analyst",
-    name: "Dr. Rajesh K. Pillai",
-    designation: "Chief Remote Sensing & GIS Scientist",
-    role: "GIS_ANALYST",
-    clearance: "LEVEL_2_ANALYST",
-    agency: "GSI / ISRO Disaster Management Support Group",
-    station: "Space Applications Centre & KSDMA GIS Cell",
-    badge: "Spatial Specialist",
-  },
-  {
-    id: "capacity_engineer",
-    name: "Er. Joseph Mathew",
-    designation: "Superintending Engineer (Civil & Resettlement Planning)",
-    role: "CIVIL_ENGINEER",
-    clearance: "LEVEL_2_ANALYST",
-    agency: "Kerala Public Works & Water Resources Dept",
-    station: "Wayanad Special Rehabilitation Project",
-    badge: "Relocation Engineer",
+    badge: "State Authority (Decision Support)",
+    passwordHint: "GovAdmin@2026",
+    description: "State-level oversight of multi-hazard red zones, carrying capacity buffers, and evacuation readiness.",
   },
 ];
 
@@ -68,24 +70,82 @@ export function AuthProvider({ children }) {
     return DEFAULT_USER;
   });
 
+  const [token, setToken] = useState(() => {
+    return localStorage.getItem('sih26_token') || null;
+  });
+
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     return localStorage.getItem('sih26_authenticated') === 'true';
   });
 
-  const login = (userData) => {
-    setUser(userData);
-    setIsAuthenticated(true);
-    localStorage.setItem('sih26_auth_user', JSON.stringify(userData));
-    localStorage.setItem('sih26_authenticated', 'true');
+  // Verify token on mount if present
+  useEffect(() => {
+    if (token) {
+      fetchCurrentProfile()
+        .then((profile) => {
+          if (profile) {
+            setUser(profile);
+            localStorage.setItem('sih26_auth_user', JSON.stringify(profile));
+          }
+        })
+        .catch(() => {
+          // Token expired or invalid, keep existing offline/cached user
+        });
+    }
+  }, [token]);
+
+  const login = async (usernameOrPreset, password = 'GovAdmin@2026') => {
+    const username = typeof usernameOrPreset === 'string'
+      ? usernameOrPreset
+      : usernameOrPreset?.username || usernameOrPreset?.id;
+
+    try {
+      const data = await loginOfficer(username, password);
+      if (data?.user) {
+        setUser(data.user);
+        setToken(data.access_token);
+        setIsAuthenticated(true);
+        return { success: true, user: data.user };
+      }
+    } catch (err) {
+      console.warn('[Auth Login Fallback]', err?.message);
+      // Offline fallback: find matching preset
+      const matched = PRESET_USERS.find(
+        (p) => p.username === username || p.id === username
+      ) || DEFAULT_USER;
+      setUser(matched);
+      setIsAuthenticated(true);
+      localStorage.setItem('sih26_auth_user', JSON.stringify(matched));
+      localStorage.setItem('sih26_authenticated', 'true');
+      return { success: true, user: matched, offline: true };
+    }
   };
 
   const logout = () => {
+    logoutOfficer();
+    setUser(null);
+    setToken(null);
     setIsAuthenticated(false);
-    localStorage.removeItem('sih26_authenticated');
   };
 
+  const isAdmin = user?.role === 'ADMIN';
+  const isAuthorityViewer = user?.role === 'AUTHORITY_VIEWER';
+  const canEditData = isAdmin; // Authority users primarily consume decision support info
+
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated, login, logout, PRESET_USERS }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        token,
+        isAuthenticated,
+        isAdmin,
+        isAuthorityViewer,
+        canEditData,
+        login,
+        logout,
+        PRESET_USERS,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

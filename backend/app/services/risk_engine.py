@@ -449,8 +449,17 @@ def compute_habitation_risk_from_db(
 
     calculation = calculate_composite_risk(factors_dict, details_dict, weights)
 
-    # Parse GeoJSON string to dict
-    geo_dict = json.loads(hab["geojson"]) if hab["geojson"] else None
+    # Parse GeoJSON safely
+    if isinstance(hab.get("geojson"), str):
+        try:
+            geo_dict = json.loads(hab["geojson"])
+        except Exception:
+            geo_dict = None
+    elif isinstance(hab.get("geojson"), dict):
+        geo_dict = hab["geojson"]
+    else:
+        geo_dict = None
+
 
     return {
         "habitation_id": hab["id"],

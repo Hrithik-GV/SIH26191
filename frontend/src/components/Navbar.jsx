@@ -15,11 +15,12 @@ import {
   Layers,
   Building2,
   FileCheck2,
+  ShieldCheck,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export default function Navbar({ activeView, setActiveView, isBackendLive, activeAlertsCount = 0 }) {
-  const { user, logout } = useAuth();
+  const { user, logout, isAdmin } = useAuth();
   const [timeUTC, setTimeUTC] = useState('');
   const [timeIST, setTimeIST] = useState('');
   const [userDropdown, setUserDropdown] = useState(false);
@@ -42,6 +43,7 @@ export default function Navbar({ activeView, setActiveView, isBackendLive, activ
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: Activity },
+    { id: 'admin-console', label: isAdmin ? 'Admin Console' : 'Authority Command', icon: ShieldCheck, highlight: true },
     { id: 'risk-map', label: 'Risk Map', icon: Map },
     { id: 'habitations', label: 'Habitations', icon: Users },
     { id: 'relocation-sites', label: 'Relocation Sites', icon: Building2 },
@@ -50,6 +52,7 @@ export default function Navbar({ activeView, setActiveView, isBackendLive, activ
     { id: 'analytics', label: 'Analytics', icon: BarChart3 },
     { id: 'data-sources', label: 'Telemetry Feeds', icon: Database },
   ];
+
 
   return (
     <header className="bg-slate-900 border-b border-slate-800 sticky top-0 z-50 text-slate-100 shadow-md">
@@ -170,6 +173,16 @@ export default function Navbar({ activeView, setActiveView, isBackendLive, activ
                   <button
                     onClick={() => {
                       setUserDropdown(false);
+                      setActiveView('admin-console');
+                    }}
+                    className="w-full text-left px-3 py-1.5 text-amber-300 hover:bg-slate-800 flex items-center gap-2 font-medium"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+                    <span>{isAdmin ? 'Admin Console & Logs' : 'Authority Command'}</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setUserDropdown(false);
                       setActiveView('data-sources');
                     }}
                     className="w-full text-left px-3 py-1.5 text-slate-300 hover:bg-slate-800 hover:text-white flex items-center gap-2"
@@ -177,6 +190,7 @@ export default function Navbar({ activeView, setActiveView, isBackendLive, activ
                     <Radio className="w-3.5 h-3.5 text-sky-400" />
                     Telemetry Feeds Status
                   </button>
+
                   <button
                     onClick={() => {
                       setUserDropdown(false);

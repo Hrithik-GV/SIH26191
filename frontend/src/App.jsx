@@ -11,7 +11,9 @@ import RelocationRecommendationsPage from './pages/RelocationRecommendationsPage
 import AlertsPage from './pages/AlertsPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import DataSourcesPage from './pages/DataSourcesPage';
+import AdminConsolePage from './pages/AdminConsolePage';
 import { checkSystemHealth, getAlerts } from './services/api';
+
 
 function AppContent() {
   const { isAuthenticated } = useAuth();
@@ -123,7 +125,10 @@ function AppContent() {
         {activeView === 'analytics' && <AnalyticsPage />}
 
         {activeView === 'data-sources' && <DataSourcesPage />}
+
+        {activeView === 'admin-console' && <AdminConsolePage />}
       </main>
+
 
       {/* Official Government Footer */}
       <footer className="bg-slate-900/80 border-t border-slate-800/80 py-4 px-4 text-xs text-slate-500">

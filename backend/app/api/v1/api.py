@@ -15,12 +15,16 @@ from backend.app.api.v1.endpoints import (
     risk,
     gis,
     events,
+    auth,
+    admin,
 )
 
 api_router = APIRouter()
 
-# Register the 9 designated API groups + GIS, Events, and diagnostics
+# Register the 9 designated API groups + GIS, Events, Auth, Admin and diagnostics
 api_router.include_router(health.router, tags=["Health & Diagnostics"])
+api_router.include_router(auth.router, tags=["Security & Authentication"])
+api_router.include_router(admin.router, tags=["Authority & Administration"])
 api_router.include_router(dashboard.router, tags=["Executive Dashboard"])
 api_router.include_router(hazards.router, tags=["Hazard Zones"])
 api_router.include_router(habitations.router, tags=["Habitations & Settlements"])
@@ -33,3 +37,4 @@ api_router.include_router(analytics.router, tags=["Analytics & Visualizations"])
 api_router.include_router(risk.router, tags=["Hazard Risk Assessment"])
 api_router.include_router(gis.router, tags=["GIS Spatial Infrastructure & Layers"])
 api_router.include_router(events.router, tags=["Live Disaster Events & SSE Streaming"])
+

@@ -33,6 +33,17 @@ export const apiClient = axios.create({
   },
 });
 
+apiClient.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('sih26_token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -40,6 +51,7 @@ apiClient.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
 
 // Diagnostic Health Check
 export const checkSystemHealth = async () => {
@@ -780,5 +792,146 @@ export const connectDisasterEventStream = (onEvent, onError) => {
     return () => {};
   }
 };
+
+// ==============================================================================
+// AUTHENTICATION & AUTHORITY API
+// ==============================================================================
+
+/**
+ * Authenticates authority personnel with the backend, stores JWT token.
+ */
+export const loginOfficer = async (username, password) => {
+  const res = await apiClient.post('/auth/login', { username, password });
+  if (res.data?.access_token) {
+    localStorage.setItem('sih26_token', res.data.access_token);
+    localStorage.setItem('sih26_auth_user', JSON.stringify(res.data.user));
+    localStorage.setItem('sih26_authenticated', 'true');
+  }
+  return res.data;
+};
+
+/**
+ * Retrieves the current user's profile claims from the verified JWT.
+ */
+export const fetchCurrentProfile = async () => {
+  const res = await apiClient.get('/auth/me');
+  return res.data;
+};
+
+/**
+ * Clears local credentials.
+ */
+export const logoutOfficer = () => {
+  localStorage.removeItem('sih26_token');
+  localStorage.removeItem('sih26_auth_user');
+  localStorage.removeItem('sih26_authenticated');
+};
+
+// ==============================================================================
+// ADMINISTRATIVE CONSOLE & DECISION SUPPORT API
+// ==============================================================================
+
+/**
+ * Retrieves paginated audit logs (Admin only).
+ */
+export const fetchAuditLogs = async (params = {}) => {
+  try {
+    const res = await apiClient.get('/admin/audit-logs', { params });
+    return res.data;
+  } catch (err) {
+    console.warn('[Audit Logs API]', err?.message);
+    throw err;
+  }
+};
+
+/**
+ * Consolidated decision-support intelligence for crisis commanders.
+ */
+export const fetchDecisionSupportSummary = async () => {
+  try {
+    const res = await apiClient.get('/admin/decision-support-summary');
+    return res.data;
+  } catch (err) {
+    console.warn('[Decision Support API]', err?.message);
+    throw err;
+  }
+};
+
+/**
+ * Exports executive decision-support report in JSON or CSV.
+ */
+export const exportExecutiveReport = async ({
+  format = 'json',
+  includeRiskExplanations = true,
+  includeRelocationRecommendations = true,
+  officerNotes = '',
+} = {}) => {
+  const payload = {
+    format,
+    include_risk_explanations: includeRiskExplanations,
+    include_relocation_recommendations: includeRelocationRecommendations,
+    include_alerts: true,
+    officer_notes: officerNotes,
+  };
+
+  if (format === 'csv') {
+    const res = await apiClient.post('/admin/export-report', payload, {
+      responseType: 'blob',
+    });
+    return res.data;
+  }
+
+  const res = await apiClient.post('/admin/export-report', payload);
+  return res.data;
+};
+
+/**
+ * Creates a new demonstration settlement (Admin only).
+ */
+export const adminCreateHabitation = async (payload) => {
+  const res = await apiClient.post('/admin/habitations', payload);
+  return res.data;
+};
+
+/**
+ * Updates a demonstration settlement (Admin only).
+ */
+export const adminUpdateHabitation = async (id, payload) => {
+  const res = await apiClient.put(`/admin/habitations/${id}`, payload);
+  return res.data;
+};
+
+/**
+ * Deletes a demonstration settlement (Admin only).
+ */
+export const adminDeleteHabitation = async (id) => {
+  const res = await apiClient.delete(`/admin/habitations/${id}`);
+  return res.data;
+};
+
+/**
+ * Creates a new candidate relocation site parcel (Admin only).
+ */
+export const adminCreateRelocationSite = async (payload) => {
+  const res = await apiClient.post('/admin/relocation-sites', payload);
+  return res.data;
+};
+
+/**
+ * Updates a candidate relocation parcel (Admin only).
+ */
+export const adminUpdateRelocationSite = async (id, payload) => {
+  const res = await apiClient.put(`/admin/relocation-sites/${id}`, payload);
+  return res.data;
+};
+
+/**
+ * Deletes a candidate relocation parcel (Admin only).
+ */
+export const adminDeleteRelocationSite = async (id) => {
+  const res = await apiClient.delete(`/admin/relocation-sites/${id}`);
+  return res.data;
+};
+
 
 

@@ -19,6 +19,11 @@ class Settings(BaseSettings):
     BACKEND_PORT: int = 8000
     BACKEND_LOG_LEVEL: str = "INFO"
 
+    # JWT Authentication & Security
+    JWT_SECRET_KEY: str = "sih26191-top-secret-super-secure-jwt-signing-key-2026-ndma-ksdma"
+    JWT_ALGORITHM: str = "HS256"
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 720  # 12 hours
+
     # CORS configuration
     CORS_ORIGINS: List[str] = [
         "http://localhost:5173",
