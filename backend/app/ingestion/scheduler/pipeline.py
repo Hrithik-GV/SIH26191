@@ -118,6 +118,19 @@ class IngestionPipeline:
                     logger.error(f"Error committing records for {source_id}: {commit_err}")
                     raise commit_err
 
+                # Trigger the 6-step reactive disaster update pipeline if new records were inserted
+                if inserted_count > 0 and valid_normalized:
+                    try:
+                        from backend.app.services.disaster_update_orchestrator import DisasterUpdateOrchestrator
+                        obs_type = "rainfall" if source_id in ("mosdac_isro", "imd_weather") else "river" if source_id == "cwc_wims" else "alert"
+                        DisasterUpdateOrchestrator.process_incoming_observation(
+                            observation_type=obs_type,
+                            data=valid_normalized[0],
+                            db=db,
+                        )
+                    except Exception as orch_err:
+                        logger.warning(f"Reactive disaster update pipeline encountered error: {orch_err}")
+
             elapsed_ms = (time.perf_counter() - start_time) * 1000.0
 
             # 5. Record run in singleton status registry

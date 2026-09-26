@@ -16,6 +16,7 @@ import {
 import KPICard from '../components/KPICard';
 import GISMap from '../components/GISMap';
 import SidePanel from '../components/SidePanel';
+import LiveNotificationCenter from '../components/LiveNotificationCenter';
 import RiskHistogramChart from '../components/Charts/RiskHistogramChart';
 import CapacityNeedChart from '../components/Charts/CapacityNeedChart';
 import {
@@ -89,46 +90,33 @@ export default function MainDashboard({
     loadData();
   };
 
+  const handleLiveEvent = useCallback((event) => {
+    if (event.event_type === 'DASHBOARD_UPDATED' && event.data) {
+      setDashboard((prev) => ({ ...prev, ...event.data }));
+    } else if (event.event_type === 'HABITATION_PRIORITY_CHANGED' && event.data) {
+      if (event.data.immediate_assessment_count !== undefined) {
+        setDashboard((prev) => ({
+          ...prev,
+          immediate_relocation_count: event.data.immediate_assessment_count,
+        }));
+      }
+    } else if (event.event_type === 'NEW_ALERT') {
+      setDashboard((prev) => ({
+        ...prev,
+        active_alerts: (prev?.active_alerts || 4) + 1,
+      }));
+    }
+  }, []);
+
   const timestamps = dashboard?.latest_data_timestamps || {};
 
   return (
     <div className="space-y-4">
-      {/* Telemetry Status Strip */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-900/90 border border-slate-800 rounded-xl px-4 py-2.5 shadow-sm text-xs">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <span
-              className={`w-2.5 h-2.5 rounded-full ${
-                isLive ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'
-              }`}
-            ></span>
-            <span className="font-semibold text-slate-200">
-              {isLive ? 'Live Sensor Telemetry Pipeline' : 'Demonstration Regional Simulation'}
-            </span>
-          </div>
-          <span className="text-slate-600 hidden sm:inline">|</span>
-          <span className="text-slate-400 hidden md:inline">
-            Sector: <strong className="text-slate-200">Wayanad Disaster Red Zones (Vythiri / Meppadi)</strong>
-          </span>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <div className="hidden lg:flex items-center gap-3 text-slate-400 font-mono text-[11px]">
-            <span>Rainfall: <strong className="text-sky-400">12m ago</strong></span>
-            <span>River Gauge: <strong className="text-sky-400">5m ago</strong></span>
-            <span>NDMA CAP: <strong className="text-emerald-400">Sync</strong></span>
-          </div>
-
-          <button
-            onClick={handleRefresh}
-            disabled={refreshing}
-            className="flex items-center gap-1.5 px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs transition-colors"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-amber-400' : ''}`} />
-            <span>{refreshing ? 'Syncing...' : 'Sync Telemetry'}</span>
-          </button>
-        </div>
-      </div>
+      {/* Live Disaster Notification Center & SSE Stream Control */}
+      <LiveNotificationCenter
+        onEventReceived={handleLiveEvent}
+        onNavigate={onNavigate}
+      />
 
       {/* Top 4 KPI Cards (As required by prompt) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">

@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import GISMap from '../components/GISMap';
 import SidePanel from '../components/SidePanel';
+import LiveNotificationCenter from '../components/LiveNotificationCenter';
 import { getHabitations, getHazards, getRelocationSites, getAlerts } from '../services/api';
 
 export default function RiskMapPage({ onSelectHabitation, onSelectRelocationSite }) {
@@ -60,6 +61,17 @@ export default function RiskMapPage({ onSelectHabitation, onSelectRelocationSite
 
   return (
     <div className="space-y-4">
+      {/* Real-time Disaster Events & SSE Control */}
+      <LiveNotificationCenter
+        onEventReceived={(evt) => {
+          if (evt.data?.priorities && evt.data.priorities.length > 0) {
+            // Focus on first urgent habitation
+            const first = evt.data.priorities[0];
+            setSelectedEntity({ type: 'habitation', data: first });
+          }
+        }}
+      />
+
       {/* Top Controls Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 shadow-sm text-xs">
         <div className="flex items-center gap-3">

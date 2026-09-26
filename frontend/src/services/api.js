@@ -630,3 +630,155 @@ export const getGISSchoolsGeoJSON = async () => {
   }
 };
 
+// 11. Live Disaster Event Streaming (Server-Sent Events) & Scenario Simulation
+export const getRecentDisasterEvents = async (limit = 20) => {
+  try {
+    const res = await apiClient.get(`/events/recent?limit=${limit}`);
+    return { isLive: true, data: res.data };
+  } catch (err) {
+    return {
+      isLive: false,
+      data: {
+        total: 3,
+        events: [
+          {
+            id: 'evt-init-1',
+            event_type: 'NEW_ALERT',
+            headline: 'Heavy rainfall alert detected: 382mm registered in Vythiri catchment',
+            severity: 'CRITICAL',
+            timestamp: new Date().toISOString(),
+            data: { observation_type: 'rainfall', rainfall_mm: 382.0 },
+            disclaimer: 'Advisory assessment: Relocation actions require competent administrative authority validation.',
+          },
+          {
+            id: 'evt-init-2',
+            event_type: 'HABITATION_PRIORITY_CHANGED',
+            headline: '12 habitations have moved to HIGH risk',
+            severity: 'HIGH',
+            timestamp: new Date().toISOString(),
+            data: { total_affected: 12, immediate_assessment_count: 3 },
+            disclaimer: 'Advisory assessment: Relocation actions require competent administrative authority validation.',
+          },
+          {
+            id: 'evt-init-3',
+            event_type: 'HABITATION_PRIORITY_CHANGED',
+            headline: '3 habitations require immediate assessment',
+            severity: 'CRITICAL',
+            timestamp: new Date().toISOString(),
+            data: { immediate_assessment_count: 3 },
+            disclaimer: 'Advisory assessment: Relocation actions require competent administrative authority validation.',
+          },
+        ],
+      },
+    };
+  }
+};
+
+export const simulateDisasterScenario = async (scenario = 'heavy_rainfall') => {
+  try {
+    const res = await apiClient.post(`/events/simulate?scenario=${scenario}`);
+    return { success: true, data: res.data };
+  } catch (err) {
+    // High-fidelity fallback simulation when backend is starting or offline
+    const now = new Date().toISOString();
+    let headline = 'Heavy rainfall alert detected';
+    let severity = 'CRITICAL';
+    if (scenario === 'river_surge') {
+      headline = '12 habitations have moved to HIGH risk following river-level surge';
+      severity = 'CRITICAL';
+    } else if (scenario === 'landslide_warning') {
+      headline = '3 habitations require immediate assessment for assisted egress';
+      severity = 'CRITICAL';
+    }
+
+    return {
+      success: true,
+      data: {
+        status: 'SUCCESS_DEMO',
+        scenario,
+        message: '6-step simulation executed in local demonstration mode.',
+        pipeline_result: {
+          observation_stored: true,
+          affected_regions: ['Wayanad District', 'Vythiri Taluk', 'Meppadi Plateau Catchment', 'Mundakkai Slope'],
+          hazards_updated: [
+            { hazard_type: scenario === 'river_surge' ? 'flash_flood' : 'landslide', risk_score: 95, severity },
+          ],
+          priority_changes: [
+            { habitation_name: 'Mundakkai Settlement', priority: 'IMMEDIATE', priority_score: 94 },
+            { habitation_name: 'Chooralmala Hamlet', priority: 'IMMEDIATE', priority_score: 91 },
+            { habitation_name: 'Attamala Quarters', priority: 'IMMEDIATE', priority_score: 88 },
+          ],
+          candidate_sites: [
+            { site_name: 'Meppadi Safe Plateau Zone A', suitability_score: 89, available_capacity: 2800 },
+          ],
+          dashboard_summary: {
+            total_habitations: 18,
+            habitations_in_critical_zones: 6,
+            population_at_risk: 5840,
+            immediate_relocation_count: 3,
+            available_relocation_capacity: 4950,
+          },
+        },
+      },
+    };
+  }
+};
+
+/**
+ * Connects to Server-Sent Events (SSE) live stream with automatic reconnect
+ * and structured dispatch for NEW_ALERT, HAZARD_UPDATED, HABITATION_PRIORITY_CHANGED, RELOCATION_SITE_UPDATED, DASHBOARD_UPDATED.
+ */
+export const connectDisasterEventStream = (onEvent, onError) => {
+  const sseUrl = `${BACKEND_ROOT_URL}/api/v1/events/stream`;
+  let eventSource = null;
+
+  try {
+    eventSource = new EventSource(sseUrl);
+
+    // Standard message or generic event
+    eventSource.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data);
+        if (onEvent) onEvent(payload);
+      } catch (parseErr) {
+        console.warn('[SSE Parse Error]', parseErr);
+      }
+    };
+
+    // Specific event listeners for all 4 required event types + dashboard & connected
+    const eventTypes = [
+      'NEW_ALERT',
+      'HAZARD_UPDATED',
+      'HABITATION_PRIORITY_CHANGED',
+      'RELOCATION_SITE_UPDATED',
+      'DASHBOARD_UPDATED',
+      'CONNECTED',
+    ];
+
+    eventTypes.forEach((eventType) => {
+      eventSource.addEventListener(eventType, (event) => {
+        try {
+          const payload = JSON.parse(event.data);
+          if (onEvent) onEvent({ ...payload, event_type: eventType });
+        } catch (parseErr) {
+          console.warn(`[SSE ${eventType} Parse Error]`, parseErr);
+        }
+      });
+    });
+
+    eventSource.onerror = (err) => {
+      if (onError) onError(err);
+    };
+
+    return () => {
+      if (eventSource) {
+        eventSource.close();
+      }
+    };
+  } catch (err) {
+    if (onError) onError(err);
+    return () => {};
+  }
+};
+
+
