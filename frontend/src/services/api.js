@@ -933,5 +933,67 @@ export const adminDeleteRelocationSite = async (id) => {
   return res.data;
 };
 
+// ==============================================================================
+// COMPREHENSIVE REPORT GENERATION & EXPORT API
+// ==============================================================================
+
+/**
+ * Retrieves report selection options: districts, habitations, hazard events, relocation sites.
+ */
+export const fetchReportOptions = async () => {
+  try {
+    const res = await apiClient.get('/reports/options');
+    return res.data;
+  } catch (err) {
+    console.warn('[Report Options API Fallback]', err?.message);
+    return {
+      districts: ['Wayanad', 'Idukki', 'Malappuram'],
+      habitations: [],
+      hazard_events: [],
+      relocation_sites: [],
+    };
+  }
+};
+
+/**
+ * Generates full 13-section decision support report with 4 epistemic pillars (JSON).
+ */
+export const generateComprehensiveReport = async (payload) => {
+  const res = await apiClient.post('/reports/generate', payload);
+  return res.data;
+};
+
+/**
+ * Exports report as PDF, CSV, or JSON blob for download.
+ */
+export const exportComprehensiveReport = async ({
+  district = 'Wayanad',
+  habitationId = null,
+  hazardEventId = null,
+  relocationSiteId = null,
+  officerNotes = '',
+  format = 'pdf',
+} = {}) => {
+  const payload = {
+    district,
+    habitation_id: habitationId,
+    hazard_event_id: hazardEventId,
+    relocation_site_id: relocationSiteId,
+    officer_notes: officerNotes,
+    format,
+  };
+
+  if (format === 'pdf' || format === 'csv') {
+    const res = await apiClient.post('/reports/export', payload, {
+      responseType: 'blob',
+    });
+    return res.data;
+  }
+
+  const res = await apiClient.post('/reports/export', payload);
+  return res.data;
+};
+
+
 
 

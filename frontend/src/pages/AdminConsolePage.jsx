@@ -38,6 +38,9 @@ import {
   fetchAuditLogs,
   fetchDecisionSupportSummary,
   exportExecutiveReport,
+  fetchReportOptions,
+  generateComprehensiveReport,
+  exportComprehensiveReport,
   adminCreateHabitation,
   adminUpdateHabitation,
   adminDeleteHabitation,
@@ -45,6 +48,7 @@ import {
   adminUpdateRelocationSite,
   adminDeleteRelocationSite,
 } from '../services/api';
+
 
 
 export default function AdminConsolePage() {
@@ -98,11 +102,26 @@ export default function AdminConsolePage() {
     longitude: 76.12,
   });
 
-  // Report Export Form
-  const [exportFormat, setExportFormat] = useState('json');
+  // Report Generation & Export Form
+  const [exportFormat, setExportFormat] = useState('pdf');
   const [exportNotes, setExportNotes] = useState('');
   const [exporting, setExporting] = useState(false);
   const [exportedJsonPreview, setExportedJsonPreview] = useState(null);
+
+  // Advanced Report Generation Selection States
+  const [reportOptions, setReportOptions] = useState({
+    districts: ['Wayanad', 'Idukki', 'Malappuram', 'Kozhikode'],
+    habitations: [],
+    hazard_events: [],
+    relocation_sites: [],
+  });
+  const [reportDistrict, setReportDistrict] = useState('Wayanad');
+  const [reportHabitationId, setReportHabitationId] = useState('');
+  const [reportHazardEventId, setReportHazardEventId] = useState('');
+  const [reportRelocationSiteId, setReportRelocationSiteId] = useState('');
+  const [generatedReport, setGeneratedReport] = useState(null);
+  const [generatingReport, setGeneratingReport] = useState(false);
+  const [reportViewMode, setReportViewMode] = useState('13_sections'); // '13_sections' or 'epistemic'
 
   // Search & filter states
   const [habSearch, setHabSearch] = useState('');
@@ -113,11 +132,12 @@ export default function AdminConsolePage() {
     setLoading(true);
     setActionError(null);
     try {
-      const [sumRes, habRes, siteRes, alertRes] = await Promise.allSettled([
+      const [sumRes, habRes, siteRes, alertRes, optRes] = await Promise.allSettled([
         fetchDecisionSupportSummary(),
         getHabitations({ page_size: 50 }),
         getRelocationSites({ page_size: 50 }),
         getAlerts({ page_size: 50 }),
+        fetchReportOptions(),
       ]);
 
       if (sumRes.status === 'fulfilled') setDecisionSummary(sumRes.value);
@@ -136,6 +156,19 @@ export default function AdminConsolePage() {
         const items = d.items || (Array.isArray(d) ? d : []);
         setAlerts(items);
       }
+      if (optRes.status === 'fulfilled' && optRes.value) {
+        setReportOptions(optRes.value);
+        if (optRes.value.habitations?.length > 0 && !reportHabitationId) {
+          setReportHabitationId(optRes.value.habitations[0].id);
+        }
+        if (optRes.value.hazard_events?.length > 0 && !reportHazardEventId) {
+          setReportHazardEventId(optRes.value.hazard_events[0].id);
+        }
+        if (optRes.value.relocation_sites?.length > 0 && !reportRelocationSiteId) {
+          setReportRelocationSiteId(optRes.value.relocation_sites[0].id);
+        }
+      }
+
 
 
       // If user is Admin, also load audit logs
@@ -293,44 +326,100 @@ export default function AdminConsolePage() {
     }
   };
 
-  // --- Executive Report Export ---
-  const handleExportReport = async () => {
-    setExporting(true);
-    setExportedJsonPreview(null);
+  // --- Comprehensive Report Generation & Export Handlers ---
+  const handleGenerateLiveReport = async () => {
+    setGeneratingReport(true);
     try {
-      if (exportFormat === 'csv') {
-        const blob = await exportExecutiveReport({
-          format: 'csv',
-          officerNotes: exportNotes,
-        });
-        const url = window.URL.createObjectURL(new Blob([blob]));
-        const link = document.createElement('a');
-        link.href = url;
-        link.setAttribute('download', `sih26_disaster_report_${new Date().toISOString().slice(0,10)}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        link.parentNode.removeChild(link);
-        showNotification('Official CSV report exported and downloaded.');
-      } else {
-        const data = await exportExecutiveReport({
-          format: 'json',
-          officerNotes: exportNotes,
-        });
-        setExportedJsonPreview(data);
-        showNotification('Executive Decision-Support Report generated.');
-      }
-      // Refresh audit logs if admin
+      const payload = {
+        district: reportDistrict,
+        habitation_id: reportHabitationId || undefined,
+        hazard_event_id: reportHazardEventId || undefined,
+        relocation_site_id: reportRelocationSiteId || undefined,
+        officer_notes: exportNotes,
+      };
+      const data = await generateComprehensiveReport(payload);
+      setGeneratedReport(data);
+      setExportedJsonPreview(data);
+      showNotification(`Report generated for ${data.jurisdiction?.focal_habitation || 'Settlement'}.`);
+
       if (isAdmin) {
         const auditRes = await fetchAuditLogs({ page: 1, pageSize: 25 });
         setAuditLogs(auditRes?.items || []);
         setAuditTotal(auditRes?.total || 0);
       }
     } catch (err) {
-      showNotification('Report export error: ' + (err?.response?.data?.error?.message || err.message), true);
+      showNotification('Report generation failed: ' + (err?.response?.data?.error?.message || err.message), true);
+    } finally {
+      setGeneratingReport(false);
+    }
+  };
+
+  const handleDownloadPdf = async () => {
+    setExporting(true);
+    try {
+      const blob = await exportComprehensiveReport({
+        district: reportDistrict,
+        habitationId: reportHabitationId || null,
+        hazardEventId: reportHazardEventId || null,
+        relocationSiteId: reportRelocationSiteId || null,
+        officerNotes: exportNotes,
+        format: 'pdf',
+      });
+      const url = window.URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
+      const link = document.createElement('a');
+      link.href = url;
+      const focalName = (generatedReport?.jurisdiction?.focal_habitation || 'disaster').replace(/\s+/g, '_').toLowerCase();
+      link.setAttribute('download', `sih26_report_${focalName}_${new Date().toISOString().slice(0, 10)}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+      showNotification('Official PDF report downloaded successfully.');
+
+      if (isAdmin) {
+        const auditRes = await fetchAuditLogs({ page: 1, pageSize: 25 });
+        setAuditLogs(auditRes?.items || []);
+        setAuditTotal(auditRes?.total || 0);
+      }
+    } catch (err) {
+      showNotification('PDF download failed: ' + (err?.response?.data?.error?.message || err.message), true);
     } finally {
       setExporting(false);
     }
   };
+
+  const handleDownloadCsv = async () => {
+    setExporting(true);
+    try {
+      const blob = await exportComprehensiveReport({
+        district: reportDistrict,
+        habitationId: reportHabitationId || null,
+        hazardEventId: reportHazardEventId || null,
+        relocationSiteId: reportRelocationSiteId || null,
+        officerNotes: exportNotes,
+        format: 'csv',
+      });
+      const url = window.URL.createObjectURL(new Blob([blob], { type: 'text/csv' }));
+      const link = document.createElement('a');
+      link.href = url;
+      const focalName = (generatedReport?.jurisdiction?.focal_habitation || 'disaster').replace(/\s+/g, '_').toLowerCase();
+      link.setAttribute('download', `sih26_report_${focalName}_${new Date().toISOString().slice(0, 10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+      showNotification('Official CSV report downloaded successfully.');
+
+      if (isAdmin) {
+        const auditRes = await fetchAuditLogs({ page: 1, pageSize: 25 });
+        setAuditLogs(auditRes?.items || []);
+        setAuditTotal(auditRes?.total || 0);
+      }
+    } catch (err) {
+      showNotification('CSV download failed: ' + (err?.response?.data?.error?.message || err.message), true);
+    } finally {
+      setExporting(false);
+    }
+  };
+
 
   const filteredHabitations = habitations.filter((h) =>
     (h.name || '').toLowerCase().includes(habSearch.toLowerCase()) ||
@@ -895,107 +984,567 @@ export default function AdminConsolePage() {
         )}
 
         {/* =========================================================================
-            TAB 4: EXECUTIVE REPORT EXPORT (Accessible to ADMIN & AUTHORITY_VIEWER)
+            TAB 4: EXECUTIVE REPORT GENERATION & DECISION BRIEFING
            ========================================================================= */}
         {activeTab === 'export_report' && (
           <div className="space-y-6">
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-xl max-w-3xl">
-              <h2 className="text-lg font-black text-white flex items-center gap-2 mb-1">
-                <FileSpreadsheet className="w-5 h-5 text-amber-400" />
-                <span>Executive Decision-Support Report Generator</span>
-              </h2>
-              <p className="text-xs text-slate-400 mb-6">
-                Exports official disaster management briefings with multi-hazard risk explanations, relocation prioritization rankings, and statutory compliance blocks.
-              </p>
-
-              <div className="space-y-5">
+            {/* Report Configuration & Target Selection Panel */}
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-xl">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
-                    Report Export Format:
-                  </label>
-                  <div className="grid grid-cols-2 gap-3 max-w-md">
-                    <button
-                      type="button"
-                      onClick={() => setExportFormat('json')}
-                      className={`p-3 rounded-lg border text-left text-xs transition-all ${
-                        exportFormat === 'json'
-                          ? 'bg-amber-500/15 border-amber-500 text-white'
-                          : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
-                      }`}
-                    >
-                      <div className="font-bold text-slate-200">JSON Format</div>
-                      <div className="text-[11px] text-slate-400 mt-0.5">Structured for command APIs & archival</div>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setExportFormat('csv')}
-                      className={`p-3 rounded-lg border text-left text-xs transition-all ${
-                        exportFormat === 'csv'
-                          ? 'bg-amber-500/15 border-amber-500 text-white'
-                          : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
-                      }`}
-                    >
-                      <div className="font-bold text-slate-200">CSV Spreadsheet</div>
-                      <div className="text-[11px] text-slate-400 mt-0.5">Tabular format for Excel & briefing decks</div>
-                    </button>
-                  </div>
+                  <h2 className="text-lg font-black text-white flex items-center gap-2">
+                    <FileSpreadsheet className="w-5 h-5 text-amber-400" />
+                    <span>Executive Disaster Risk & Relocation Report Generator</span>
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    Generate multi-criteria decision-support reports for any combination of district, settlement, hazard incident, and relocation parcel.
+                  </p>
                 </div>
+                <div className="flex items-center gap-2 font-mono text-xs">
+                  <span className="px-2.5 py-1 rounded bg-slate-950 text-slate-300 border border-slate-800">
+                    13 Statutory Sections
+                  </span>
+                  <span className="px-2.5 py-1 rounded bg-amber-500/10 text-amber-300 border border-amber-500/30">
+                    4 Epistemic Pillars
+                  </span>
+                </div>
+              </div>
 
+              {/* Selection Dropdown Controls */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                {/* 1. Selected District */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">
-                    Commanding Officer Remarks / Directive Notes:
+                  <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                    1. Target District:
                   </label>
-                  <textarea
-                    rows="3"
-                    value={exportNotes}
-                    onChange={(e) => setExportNotes(e.target.value)}
-                    placeholder="Enter executive briefing notes, monsoon directives, or evacuation priority remarks..."
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs text-slate-200 focus:border-amber-500 focus:outline-none"
-                  ></textarea>
+                  <select
+                    value={reportDistrict}
+                    onChange={(e) => setReportDistrict(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-200 font-mono focus:border-amber-500 focus:outline-none"
+                  >
+                    {reportOptions.districts?.map((d) => (
+                      <option key={d} value={d}>{d} District</option>
+                    ))}
+                  </select>
                 </div>
 
-                <div className="p-3.5 rounded-lg bg-slate-950/80 border border-slate-800/80 text-[11px] text-slate-400 space-y-1">
-                  <div className="font-bold text-slate-300">Generated Report Contents:</div>
-                  <ul className="list-disc list-inside space-y-0.5 text-slate-400">
-                    <li>Jurisdiction KPIs & Population at Risk</li>
-                    <li>Transparent 7-factor Multi-Hazard Risk Explanations</li>
-                    <li>Prioritized Relocation Recommendations with Safe Carrying Capacity</li>
-                    <li>Active Early Warning Alerts (IMD/CWC/NDMA)</li>
-                    <li>Official Officer Signoff & Disaster Management Act 2005 Advisory Block</li>
-                  </ul>
+                {/* 2. Selected Habitation */}
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                    2. Focal Settlement:
+                  </label>
+                  <select
+                    value={reportHabitationId}
+                    onChange={(e) => setReportHabitationId(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-200 font-mono focus:border-amber-500 focus:outline-none"
+                  >
+                    <option value="">All / Priority Overview</option>
+                    {reportOptions.habitations?.map((h) => (
+                      <option key={h.id} value={h.id}>
+                        {h.name} (Pop: {h.population?.toLocaleString()})
+                      </option>
+                    ))}
+                  </select>
                 </div>
+
+                {/* 3. Selected Hazard Event */}
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                    3. Focal Hazard Event:
+                  </label>
+                  <select
+                    value={reportHazardEventId}
+                    onChange={(e) => setReportHazardEventId(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-200 font-mono focus:border-amber-500 focus:outline-none"
+                  >
+                    <option value="">Latest Active Multi-Hazard Trigger</option>
+                    {reportOptions.hazard_events?.map((ev) => (
+                      <option key={ev.id} value={ev.id}>
+                        {ev.disaster_type?.toUpperCase()} ({ev.severity}) - {ev.source}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 4. Selected Relocation Site */}
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                    4. Candidate Relocation Parcel:
+                  </label>
+                  <select
+                    value={reportRelocationSiteId}
+                    onChange={(e) => setReportRelocationSiteId(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-200 font-mono focus:border-amber-500 focus:outline-none"
+                  >
+                    <option value="">Optimal Evaluated Safe Parcel</option>
+                    {reportOptions.relocation_sites?.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name} (Buffer: +{s.available_capacity?.toLocaleString()})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Officer Directives / Notes */}
+              <div className="mb-5">
+                <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                  Commanding Officer Directives & Strategic Notes:
+                </label>
+                <textarea
+                  rows="2"
+                  value={exportNotes}
+                  onChange={(e) => setExportNotes(e.target.value)}
+                  placeholder="Enter executive briefing notes, monsoon contingencies, priority evacuation orders, or civil defense notes..."
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs text-slate-200 focus:border-amber-500 focus:outline-none"
+                ></textarea>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={handleGenerateLiveReport}
+                  disabled={generatingReport}
+                  className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg flex items-center gap-2 transition-all shadow-md shadow-amber-950/40 disabled:opacity-50 cursor-pointer"
+                >
+                  <Eye className="w-4 h-4" />
+                  <span>{generatingReport ? 'Compiling 13 Sections...' : 'Generate & Inspect Live Report'}</span>
+                </button>
 
                 <button
                   type="button"
-                  onClick={handleExportReport}
+                  onClick={handleDownloadPdf}
                   disabled={exporting}
-                  className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg flex items-center gap-2 transition-all shadow-lg shadow-amber-950/50 disabled:opacity-50"
+                  className="px-4 py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-lg flex items-center gap-2 transition-all shadow-md shadow-rose-950/40 disabled:opacity-50 cursor-pointer"
+                >
+                  <FileText className="w-4 h-4" />
+                  <span>{exporting ? 'Generating PDF...' : 'Download Official PDF Report'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleDownloadCsv}
+                  disabled={exporting}
+                  className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg flex items-center gap-2 transition-all shadow-md shadow-emerald-950/40 disabled:opacity-50 cursor-pointer"
                 >
                   <Download className="w-4 h-4" />
-                  <span>{exporting ? 'Compiling Official Report...' : 'Generate & Download Executive Report'}</span>
+                  <span>{exporting ? 'Exporting CSV...' : 'Download CSV Spreadsheet'}</span>
                 </button>
               </div>
             </div>
 
-            {/* JSON Output Preview if generated */}
-            {exportedJsonPreview && (
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-xl">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-xs font-bold text-white uppercase tracking-wider font-mono">
-                    Report Preview ({exportedJsonPreview.report_id})
-                  </h3>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400">
-                    GENERATED & AUDITED
-                  </span>
+            {/* Generated Report Live Inspector */}
+            {generatedReport && (
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-2xl space-y-6">
+                {/* Report Header & Meta Bar */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-xl bg-slate-950 border border-slate-800">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                        {generatedReport.report_id}
+                      </span>
+                      <span className="text-xs font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300">
+                        {new Date(generatedReport.generated_at).toLocaleString()} UTC
+                      </span>
+                    </div>
+                    <h3 className="text-base font-bold text-white tracking-tight">
+                      {generatedReport.title}
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Focal Target: <span className="text-slate-200 font-semibold">{generatedReport.jurisdiction?.focal_habitation}</span> ({generatedReport.jurisdiction?.district}) • Reporting Officer: <span className="text-slate-200 font-semibold">{generatedReport.officer?.name}</span> ({generatedReport.officer?.designation})
+                    </p>
+                  </div>
+
+                  {/* View Mode Toggle */}
+                  <div className="flex items-center gap-1.5 p-1 rounded-lg bg-slate-900 border border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => setReportViewMode('13_sections')}
+                      className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                        reportViewMode === '13_sections'
+                          ? 'bg-amber-500 text-slate-950 font-bold'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      13-Section Deep Dive
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setReportViewMode('epistemic')}
+                      className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                        reportViewMode === 'epistemic'
+                          ? 'bg-amber-500 text-slate-950 font-bold'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      Epistemic Demarcation (4 Pillars)
+                    </button>
+                  </div>
                 </div>
-                <pre className="p-4 bg-slate-950 rounded-lg text-[11px] font-mono text-slate-300 overflow-x-auto max-h-96 border border-slate-800">
-                  {JSON.stringify(exportedJsonPreview, null, 2)}
-                </pre>
+
+                {/* VIEW 1: EPISTEMIC DEMARCATION (4 PILLARS) */}
+                {reportViewMode === 'epistemic' && generatedReport.epistemic_categorization && (
+                  <div className="space-y-4">
+                    <div className="text-xs text-slate-400 bg-slate-950/60 p-3 rounded-lg border border-slate-800">
+                      <strong className="text-slate-200">EPISTEMIC GOVERNANCE PRINCIPLE:</strong> Scientific disaster management strictly separates ground sensor measurements from statistical models, mathematical assumptions, and executive directives to ensure transparent decision-support.
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Pillar 1: Observed Data */}
+                      <div className="p-4 rounded-xl bg-blue-950/20 border border-blue-500/30">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-blue-400 animate-pulse"></span>
+                          <h4 className="text-xs font-bold text-blue-300 uppercase tracking-wider font-mono">
+                            [1] OBSERVED DATA (Empirical Ground Sensors)
+                          </h4>
+                        </div>
+                        <p className="text-[11px] text-slate-400 mb-3">
+                          {generatedReport.epistemic_categorization.observed_data.description}
+                        </p>
+                        <div className="space-y-1.5 text-xs font-mono">
+                          {Object.entries(generatedReport.epistemic_categorization.observed_data.items).map(([k, v]) => (
+                            <div key={k} className="flex items-center justify-between p-1.5 rounded bg-slate-950/60 border border-slate-800">
+                              <span className="text-slate-400 capitalize">{k.replace(/_/g, ' ')}:</span>
+                              <span className="font-bold text-blue-300">{String(v)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Pillar 2: Model-Derived Scores */}
+                      <div className="p-4 rounded-xl bg-amber-950/20 border border-amber-500/30">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+                          <h4 className="text-xs font-bold text-amber-300 uppercase tracking-wider font-mono">
+                            [2] MODEL-DERIVED SCORES (Algorithmic Indices)
+                          </h4>
+                        </div>
+                        <p className="text-[11px] text-slate-400 mb-3">
+                          {generatedReport.epistemic_categorization.model_derived_scores.description}
+                        </p>
+                        <div className="space-y-1.5 text-xs font-mono">
+                          {Object.entries(generatedReport.epistemic_categorization.model_derived_scores.items).map(([k, v]) => (
+                            <div key={k} className="flex items-center justify-between p-1.5 rounded bg-slate-950/60 border border-slate-800">
+                              <span className="text-slate-400 capitalize">{k.replace(/_/g, ' ')}:</span>
+                              <span className="font-bold text-amber-300">{String(v)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Pillar 3: Prototype Assumptions */}
+                      <div className="p-4 rounded-xl bg-slate-900 border border-slate-700">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
+                          <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider font-mono">
+                            [3] PROTOTYPE ASSUMPTIONS (Engineering Norms)
+                          </h4>
+                        </div>
+                        <p className="text-[11px] text-slate-400 mb-3">
+                          {generatedReport.epistemic_categorization.prototype_assumptions.description}
+                        </p>
+                        <div className="space-y-1.5 text-xs font-mono">
+                          {Object.entries(generatedReport.epistemic_categorization.prototype_assumptions.items).map(([k, v]) => (
+                            <div key={k} className="flex items-center justify-between p-1.5 rounded bg-slate-950/60 border border-slate-800">
+                              <span className="text-slate-400 capitalize">{k.replace(/_/g, ' ')}:</span>
+                              <span className="font-bold text-slate-300">{String(v)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Pillar 4: Recommendations */}
+                      <div className="p-4 rounded-xl bg-emerald-950/20 border border-emerald-500/30">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+                          <h4 className="text-xs font-bold text-emerald-300 uppercase tracking-wider font-mono">
+                            [4] RECOMMENDATIONS (Decision-Support Actions)
+                          </h4>
+                        </div>
+                        <p className="text-[11px] text-slate-400 mb-3">
+                          {generatedReport.epistemic_categorization.recommendations.description}
+                        </p>
+                        <div className="space-y-1.5 text-xs font-mono">
+                          {Object.entries(generatedReport.epistemic_categorization.recommendations.items).map(([k, v]) => (
+                            <div key={k} className="flex items-center justify-between p-1.5 rounded bg-slate-950/60 border border-slate-800">
+                              <span className="text-slate-400 capitalize">{k.replace(/_/g, ' ')}:</span>
+                              <span className="font-bold text-emerald-300 text-right">{String(v)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* VIEW 2: 13-SECTION DETAILED BREAKDOWN */}
+                {reportViewMode === '13_sections' && (
+                  <div className="space-y-5">
+                    {/* Section 1: Situation Summary */}
+                    <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800">
+                      <div className="text-xs font-bold text-amber-400 uppercase tracking-wider font-mono mb-1.5">
+                        1. Situation Summary
+                      </div>
+                      <p className="text-xs text-slate-300 leading-relaxed">
+                        {generatedReport.situation_summary}
+                      </p>
+                    </div>
+
+                    {/* Section 2: Hazard Assessment */}
+                    <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800">
+                      <div className="text-xs font-bold text-amber-400 uppercase tracking-wider font-mono mb-2">
+                        2. Hazard Assessment & Telemetry
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                        <div className="p-3 rounded-lg bg-slate-900 border border-slate-800">
+                          <div className="text-[11px] text-slate-400">Active Event / Trigger</div>
+                          <div className="font-bold text-rose-400 mt-0.5">{generatedReport.hazard_assessment?.active_hazard_type}</div>
+                          <div className="text-[10px] text-slate-500 font-mono mt-1">Severity: {generatedReport.hazard_assessment?.hazard_severity}</div>
+                        </div>
+
+                        <div className="p-3 rounded-lg bg-slate-900 border border-slate-800">
+                          <div className="text-[11px] text-slate-400">Observed Rainfall (24h)</div>
+                          <div className="text-lg font-black text-amber-300 font-mono mt-0.5">
+                            {generatedReport.hazard_assessment?.rainfall_telemetry?.observed_rainfall_mm} mm
+                          </div>
+                          <div className="text-[10px] text-slate-500 truncate mt-1">
+                            {generatedReport.hazard_assessment?.rainfall_telemetry?.station}
+                          </div>
+                        </div>
+
+                        <div className="p-3 rounded-lg bg-slate-900 border border-slate-800">
+                          <div className="text-[11px] text-slate-400">River Gauge Danger Exceedance</div>
+                          <div className="text-lg font-black text-rose-400 font-mono mt-0.5">
+                            +{generatedReport.hazard_assessment?.river_telemetry?.exceedance_meters} m
+                          </div>
+                          <div className="text-[10px] text-slate-500 truncate mt-1">
+                            {generatedReport.hazard_assessment?.river_telemetry?.station_name}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Section 3: Population Vulnerability */}
+                    <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800">
+                      <div className="text-xs font-bold text-amber-400 uppercase tracking-wider font-mono mb-2">
+                        3. Population Vulnerability Profile
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
+                        <div className="p-2.5 rounded bg-slate-900 border border-slate-800">
+                          <span className="text-[10px] text-slate-400 block">Total Population</span>
+                          <span className="font-bold text-slate-100 text-sm">{generatedReport.population_vulnerability?.total_population?.toLocaleString()}</span>
+                        </div>
+                        <div className="p-2.5 rounded bg-slate-900 border border-slate-800">
+                          <span className="text-[10px] text-slate-400 block">Vulnerable Count</span>
+                          <span className="font-bold text-amber-400 text-sm">
+                            {generatedReport.population_vulnerability?.vulnerable_population?.toLocaleString()} ({generatedReport.population_vulnerability?.vulnerable_percentage}%)
+                          </span>
+                        </div>
+                        <div className="p-2.5 rounded bg-slate-900 border border-slate-800">
+                          <span className="text-[10px] text-slate-400 block">Elderly / Children / Disabled</span>
+                          <span className="font-bold text-slate-200 text-sm">
+                            {generatedReport.population_vulnerability?.elderly_count} / {generatedReport.population_vulnerability?.children_under_10_count} / {generatedReport.population_vulnerability?.persons_with_disabilities}
+                          </span>
+                        </div>
+                        <div className="p-2.5 rounded bg-slate-900 border border-slate-800">
+                          <span className="text-[10px] text-slate-400 block">Kutcha Dwellings Ratio</span>
+                          <span className="font-bold text-rose-300 text-sm">{generatedReport.population_vulnerability?.kutcha_housing_percentage}%</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Section 4: Disaster History */}
+                    <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800">
+                      <div className="text-xs font-bold text-amber-400 uppercase tracking-wider font-mono mb-2">
+                        4. Disaster Incident History
+                      </div>
+                      <div className="space-y-2 text-xs">
+                        {generatedReport.disaster_history?.map((h_ev, hIdx) => (
+                          <div key={hIdx} className="p-2.5 rounded bg-slate-900 border border-slate-800 flex items-center justify-between gap-3">
+                            <div>
+                              <span className="font-bold text-slate-200 capitalize">{h_ev.type}</span> • <span className="text-slate-400">{h_ev.historical_significance}</span>
+                            </div>
+                            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-amber-300 border border-slate-700">
+                              {h_ev.severity} ({h_ev.timestamp?.slice(0, 10)})
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Section 5, 6, 7: Risk, Priority & Relocation Recommendations */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {/* Section 5: Risk Score */}
+                      <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800">
+                        <div className="text-xs font-bold text-amber-400 uppercase tracking-wider font-mono mb-1">
+                          5. Hazard Risk Score
+                        </div>
+                        <div className="text-2xl font-black text-rose-400 font-mono mt-1">
+                          {generatedReport.risk_score?.score} / 100
+                        </div>
+                        <div className="text-[10px] font-mono text-slate-400 uppercase">
+                          Tier: {generatedReport.risk_score?.classification}
+                        </div>
+                        <div className="mt-3 space-y-1 text-[11px] font-mono">
+                          {generatedReport.risk_score?.factor_sub_scores && Object.entries(generatedReport.risk_score.factor_sub_scores).map(([fk, fv]) => (
+                            <div key={fk} className="flex justify-between text-slate-400">
+                              <span className="capitalize">{fk.replace(/_/g, ' ')}:</span>
+                              <span className="text-slate-200">{String(fv)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Section 6: Relocation Priority */}
+                      <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800">
+                        <div className="text-xs font-bold text-amber-400 uppercase tracking-wider font-mono mb-1">
+                          6. Relocation Urgency
+                        </div>
+                        <div className="text-2xl font-black text-amber-400 font-mono mt-1">
+                          {generatedReport.relocation_priority?.priority}
+                        </div>
+                        <div className="text-[10px] font-mono text-slate-400">
+                          Priority Score: {generatedReport.relocation_priority?.priority_score} / 100
+                        </div>
+                        <p className="text-xs text-slate-300 mt-3 italic">
+                          "{generatedReport.relocation_priority?.action_urgency}"
+                        </p>
+                      </div>
+
+                      {/* Section 7: Recommended Site */}
+                      <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800">
+                        <div className="text-xs font-bold text-amber-400 uppercase tracking-wider font-mono mb-1">
+                          7. Recommended Safe Site
+                        </div>
+                        <div className="text-sm font-bold text-emerald-400 mt-1">
+                          {generatedReport.recommended_relocation_sites?.[0]?.name}
+                        </div>
+                        <div className="text-[11px] font-mono text-slate-400 mt-1">
+                          Distance: <span className="text-slate-200 font-bold">{generatedReport.recommended_relocation_sites?.[0]?.distance_km} km</span> • Suitability: <span className="text-emerald-300 font-bold">{generatedReport.recommended_relocation_sites?.[0]?.suitability_score}/100</span>
+                        </div>
+                        <div className="mt-3 space-y-1 text-[10px] text-slate-400">
+                          {generatedReport.recommended_relocation_sites?.[0]?.strengths?.map((st, stIdx) => (
+                            <div key={stIdx} className="flex items-center gap-1.5">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
+                              <span>{st}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Section 8 & 9: Carrying Capacity & Available Buffer */}
+                    <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800">
+                      <div className="text-xs font-bold text-amber-400 uppercase tracking-wider font-mono mb-2">
+                        8. Carrying Capacity & 9. Available Buffer (Liebig's Law Bottleneck Model)
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
+                        <div className="p-3 rounded bg-slate-900 border border-slate-800">
+                          <span className="text-[10px] text-slate-400 block">Gross Spatial Area</span>
+                          <span className="font-bold text-slate-200">{generatedReport.carrying_capacity?.usable_land_area_sqm?.toLocaleString()} m²</span>
+                          <span className="text-[10px] text-slate-500 block">@ 50 m²/person</span>
+                        </div>
+                        <div className="p-3 rounded bg-slate-900 border border-slate-800">
+                          <span className="text-[10px] text-slate-400 block">Sustainable Civil Capacity</span>
+                          <span className="font-bold text-emerald-400 text-sm">{generatedReport.carrying_capacity?.final_ecological_civil_capacity?.toLocaleString()} persons</span>
+                          <span className="text-[10px] text-slate-500 block">Bottleneck limited</span>
+                        </div>
+                        <div className="p-3 rounded bg-slate-900 border border-slate-800">
+                          <span className="text-[10px] text-slate-400 block">Available Headroom Buffer</span>
+                          <span className="font-bold text-emerald-300 text-sm">+{generatedReport.available_capacity?.available_buffer?.toLocaleString()} persons</span>
+                          <span className="text-[10px] text-slate-500 block">Net capacity buffer</span>
+                        </div>
+                        <div className="p-3 rounded bg-slate-900 border border-slate-800">
+                          <span className="text-[10px] text-slate-400 block">Limiting Factor</span>
+                          <span className="font-bold text-amber-300 text-xs truncate block">{generatedReport.carrying_capacity?.limiting_factor}</span>
+                          <span className="text-[10px] text-slate-500 block">Active constraint</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Section 10: Key Reasons */}
+                    <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800">
+                      <div className="text-xs font-bold text-amber-400 uppercase tracking-wider font-mono mb-2">
+                        10. Key Reasons & Operational Justifications
+                      </div>
+                      <div className="space-y-1.5 text-xs">
+                        {generatedReport.key_reasons?.map((rsn, idx) => (
+                          <div key={idx} className="flex items-start gap-2 text-slate-300">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 mt-1.5 shrink-0"></span>
+                            <span>{rsn}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Section 11, 12, 13: Data Sources, Timestamps & Assumptions */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {/* Section 11: Data Sources */}
+                      <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800">
+                        <div className="text-xs font-bold text-amber-400 uppercase tracking-wider font-mono mb-2">
+                          11. Data Sources
+                        </div>
+                        <div className="space-y-2 text-[11px]">
+                          {generatedReport.data_sources?.map((ds, dsIdx) => (
+                            <div key={dsIdx} className="p-2 rounded bg-slate-900 border border-slate-800">
+                              <span className="font-bold text-slate-200 block">{ds.domain}</span>
+                              <span className="text-slate-400">{ds.provider} ({ds.product})</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Section 12: Data Timestamps */}
+                      <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 font-mono">
+                        <div className="text-xs font-bold text-amber-400 uppercase tracking-wider mb-2">
+                          12. Observation Timestamps
+                        </div>
+                        <div className="space-y-2 text-[11px]">
+                          {generatedReport.data_timestamps && Object.entries(generatedReport.data_timestamps).map(([tk, tv]) => (
+                            <div key={tk} className="p-2 rounded bg-slate-900 border border-slate-800">
+                              <span className="text-slate-400 block capitalize">{tk.replace(/_/g, ' ')}:</span>
+                              <span className="text-slate-200 font-semibold">{String(tv)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Section 13: Model Assumptions */}
+                      <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800">
+                        <div className="text-xs font-bold text-amber-400 uppercase tracking-wider font-mono mb-2">
+                          13. Model Assumptions
+                        </div>
+                        <div className="space-y-2 text-[11px]">
+                          {generatedReport.model_scoring_assumptions?.map((asm, aIdx) => (
+                            <div key={aIdx} className="p-2 rounded bg-slate-900 border border-slate-800">
+                              <span className="font-bold text-slate-300 block">{asm.parameter}: {asm.value}</span>
+                              <span className="text-slate-500 italic">{asm.basis}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Statutory Signoff Footer */}
+                <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-400 space-y-1">
+                  <div className="font-bold text-slate-300 uppercase tracking-wider font-mono">
+                    Statutory Compliance Notice (Disaster Management Act, 2005):
+                  </div>
+                  <p className="leading-relaxed">
+                    {generatedReport.statutory_signoff?.legal_disclaimer}
+                  </p>
+                  <p className="text-[11px] font-mono text-slate-500 pt-1">
+                    Certified for executive decision-support review by {generatedReport.officer?.name}, {generatedReport.officer?.designation}.
+                  </p>
+                </div>
               </div>
             )}
           </div>
         )}
+
 
         {/* =========================================================================
             TAB 5: AUDIT TRAIL LOG (ADMIN Exclusively)

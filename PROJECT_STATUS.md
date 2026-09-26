@@ -22,7 +22,59 @@
 | **Phase 4.4** | **Unified FastAPI Backend Integration (9 Primary API Groups)** | **Completed** | 2026-09-26 |
 | **Phase 5** | **Interactive MapLibre GL Frontend & Analytics Visualization** | **Completed** | 2026-09-26 |
 | **Phase 6** | **Authority & Admin Module (RBAC, JWT, Audit Trail, Report Export)** | **Completed** | 2026-09-26 |
+| **Phase 6.5** | **Comprehensive Decision-Support Report-Generation Module (PDF/CSV/JSON)** | **Completed** | 2026-09-26 |
 | **Phase 7** | End-to-End Integration, Validation & Hackathon Hardening | In Progress | — |
+
+---
+
+## ✅ Phase 6.5: Detailed Accomplishments (Comprehensive Report-Generation Module)
+
+### 1. Flexible Selection Permutations
+- [x] Multi-entity report generation engine supporting any combination of:
+  - **Selected District** (e.g., Wayanad, Idukki, Malappuram, Kozhikode)
+  - **Selected Habitation** (e.g., Chooralmala, Mundakkai, Meppadi, Attamala)
+  - **Selected Hazard Event** (e.g., Active Landslide Debris Flow, Flash Flood Surge, Severe Slope Instability)
+  - **Selected Relocation Site** (e.g., Nedumbala Estate Relocation Hub, Kalpetta South Safe Reserve, Meppadi High Ground Resettlement Zone)
+- [x] Resilient API endpoint `GET /api/v1/reports/options` with automated PostGIS database extraction and fail-safe seed fallback catalogs.
+
+### 2. Mandatory 13 Comprehensive Report Sections
+1. **Situation Summary**: Incident code, timestamp, focal district, impacted settlement demographics, current alert status, and executive posture.
+2. **Hazard Assessment**: Primary hazard type, severity tier, 24h rainfall trigger (mm), slope gradient (°), river stage distance, and geomorphology.
+3. **Population Vulnerability**: Total census population, households, vulnerable demographic ratio (infants, elderly, disabled), housing structural index, and socioeconomic vulnerability metrics.
+4. **Disaster History**: Historic recurring incidents (2018–2024 debris flows/floods), past casualty telemetry, evacuation timeline records, and recurrent risk tags.
+5. **Risk Score**: Composite 0–100 risk score with transparent breakdown across Hazard (40%), Vulnerability (35%), and Exposure (25%).
+6. **Relocation Priority**: Prototype urgency categorization (`IMMEDIATE` 81–100, `SHORT_TERM` 61–80, `MEDIUM_TERM` 31–60, `MONITOR` 0–30) with non-official government disclaimer.
+7. **Recommended Relocation Sites**: Top-ranked candidate resettlement zones ranked by spatial distance, multi-criteria suitability score (0–100), and available carrying capacity.
+8. **Carrying Capacity**: Liebig’s law of minimum capacity breakdown across Usable Land, Potable Water Yield, Sanitation & Sewage, Healthcare, and Road Transport throughput.
+9. **Available Capacity**: Gross capacity headroom minus baseline existing residents, with net intake headroom buffer and safety margin.
+10. **Key Reasons & Decision Triggers**: Human-readable bulleted risk drivers explaining why relocation is prioritized (e.g., saturated slope, cutoff bridge, high elderly concentration).
+11. **Data Sources**: Provenance inventory detailing sensors and feeds (MOSDAC Kalpana-1/INSAT-3D, CWC WIMS, NDMA SACHET CAP, IMD AWS, Survey of India DEM).
+12. **Data Timestamps**: Comprehensive observation timestamps, ingestion latencies, and cache freshness per data source.
+13. **Model & Scoring Assumptions**: Complete disclosure of prototype heuristic parameters (e.g., 50 m²/person space norm, 70 lpcd potable water, AHP factor weights, 20km proximity search radius).
+
+### 3. Rigorous Epistemic Demarcation (4 Pillars)
+To eliminate AI over-trust and ensure decision-maker transparency, all data points are explicitly segregated into 4 distinct epistemic categories across API, UI, and export documents:
+- **`observed_data`**: Empirical physical sensor observations and surveyed census ground truth (IMD rainfall mm, CWC water levels, Census 2011 population, PostGIS coordinates).
+- **`model_derived_scores`**: Deterministic algorithms, AHP composite risk scores (0–100), vulnerability indices, Liebig limiting factor carrying capacities, and priority tiers.
+- **`prototype_assumptions`**: Heuristic thresholds and planning standards (e.g., 50 m²/person minimum shelter allocation, 70 lpcd potable water, 20 km search radius, AHP matrix weights).
+- **`recommendations`**: Advisory relocation assignments, proposed safe resettlement parcels, transit route guidelines, and mandatory statutory field ground-validation directives under the Disaster Management Act, 2005.
+
+### 4. Publication-Grade Multi-Format Exports
+- [x] **High-Fidelity PDF Export**:
+  - Implemented using ReportLab (`SimpleDocTemplate`, `Table`, `Paragraph`, `KeepTogether`, `colors`).
+  - Professional government typography, NDMA / KSDMA bilingual title headers, executive metadata banner, color-coded priority badges, structured tabular breakdowns for Liebig capacities and risk components.
+  - Epistemic demarcation callout boxes and statutory Disaster Management Act, 2005 compliance signoff block.
+- [x] **Structured CSV Spreadsheet Export**:
+  - Full CSV generation covering all 13 sections with explicit header sections, key-value mappings, and epistemic classification tags for easy import into GIS / Excel.
+- [x] **Machine-Readable JSON Output**:
+  - Standardized JSON schema for programmatic pipeline integration with state command and control centers.
+
+### 5. Frontend Executive Command Integration (`AdminConsolePage.jsx`)
+- [x] Integrated dedicated Report Generation interface with 4 responsive dropdown selectors (District, Habitation, Hazard Event, Relocation Site) and an Officer Directives input.
+- [x] Added action controls: **Generate & Inspect Live Report**, **Download Official PDF Report**, and **Download CSV Spreadsheet**.
+- [x] Dual-view interactive report inspector:
+  - **13-Section Deep Dive**: Visual cards and accordions for every required section with color-coded risk and priority pills.
+  - **Epistemic Demarcation Matrix (4 Pillars)**: Categorized columns showing Observed Data, Model-Derived Scores, Prototype Assumptions, and Recommendations side-by-side.
 
 ---
 

@@ -22,3 +22,7 @@ pytest-asyncio==0.25.3
 # Security & Authentication
 pyjwt>=2.8.0
 
+# Document & PDF Generation
+reportlab>=4.0.0
+
+
